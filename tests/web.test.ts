@@ -562,7 +562,7 @@ test('an organization scanned on the page: `N with skills, among them`, the firs
   assert.deepEqual(page.errors, []);
 });
 
-test('an organization scanned on the page: a repository opens its own scan; Back returns to the organization', async (t) => {
+test('an organization scanned on the page: a repository opens its own scan; Back returns to the organization, not scanned again', async (t) => {
   const page = await openPage(`/?repo=${encodeURIComponent('github.com/JetBrains')}`);
   t.after(page.close);
   await page.until(() => !!page.document.querySelector('.owner .more'));
@@ -577,6 +577,10 @@ test('an organization scanned on the page: a repository opens its own scan; Back
   page.window.history.back();
   await page.until(() => !!page.document.querySelector('.owner'));
   assert.equal((page.$('#repo') as HTMLInputElement).value, 'github.com/JetBrains');
+  assert.deepEqual(page.$('#repo-card').hidden, false);
+  // Shown as it was scanned: Back spends no code search on it.
+  const scans = page.asked.filter((url) => url.startsWith('/api/scan'));
+  assert.deepEqual(scans, ['/api/scan?repo=github.com%2FJetBrains', '/api/scan?repo=https%3A%2F%2Fgithub.com%2FJetBrains%2Fexample']);
   assert.deepEqual(page.errors, []);
 });
 

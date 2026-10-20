@@ -350,7 +350,18 @@
       button.addEventListener('click', () => { input.value = button.dataset.example; showCount(); form.requestSubmit(); }));
   }
 
-  async function load(repo, skillName) {
+  /** Organizations scanned on this page, by input: Back to one does not spend GitHub's code search again. */
+  const ownerScans = new Map();
+
+  async function load(repo, skillName, again = false) {
+    if (again && ownerScans.has(repo)) {
+      ++request;
+      result = ownerScans.get(repo);
+      for (const part of ['#error', '#filter-box']) $(part).hidden = true;
+      go.disabled = false;
+      go.replaceChildren('Scan');
+      return showOwner();
+    }
     const id = ++request;
     go.disabled = true;
     go.replaceChildren(h('span', { class: 'spinner' }), 'Scanning');
@@ -367,7 +378,7 @@
       if (!response.ok) throw new Error(body.error ?? `The server answered ${response.status}`);
       result = body;
       filter.value = '';
-      if (result.owner) return showOwner();
+      if (result.owner) { ownerScans.set(repo, result); return showOwner(); }
       showRepository();
       const skill = result.skills.find((s) => s.name === skillName) ?? result.skills[0];
       if (skill) select(skill, false);
@@ -592,7 +603,7 @@
     }
     input.value = repo;
     showCount();
-    load(repo, name);
+    load(repo, name, true);
   }
   window.addEventListener('popstate', fromLocation);
   fromLocation();

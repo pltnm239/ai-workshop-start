@@ -4,7 +4,7 @@ Same input and core as the CLI; *nothing is stored*. Listens on `127.0.0.1` only
 ## Page
 - A **field**: a GitHub repository URL, an organization URL or a local directory; Enter scans
 - An **organization** in the field: its repository count at the field's right, `871 repos`, *as it is typed*, before Enter; asked once per name, after a short pause
-- An **organization scanned**: `27 with skills, among them`, the three repositories with the most skills, each with `N skills`, then `+24 more`, which shows the rest. A repository opens its own scan
+- An **organization scanned**: `27 with skills, among them`, the three repositories with the most skills, each with `N skills`, then `+24 more`, which shows the rest. A repository opens its own scan; Back shows the organization again *without scanning it again*: code search allows 10 requests a minute
 - The **skills**: name, the description's *first sentence*, the root (`.claude`, `.agents`, …); sorted by name
 - A **filter** over them, when there is more than one; see [Filter](#filter)
 - The selected skill: name, description, path, `also in` copies, the other front matter keys, a link to the SKILL.md
