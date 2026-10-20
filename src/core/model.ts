@@ -40,3 +40,24 @@ export function sortSkills(skills: Skill[]): Skill[] {
   const compare = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
   return [...skills].sort((a, b) => compare(a.name, b.name) || compare(a.path, b.path));
 }
+
+/** A GitHub organization or user: `https://github.com/<owner>`. */
+export type Owner = {
+  /** The login as GitHub spells it, for example `JetBrains`. */
+  id: string;
+  url: string;
+  /** How many public repositories it has. */
+  repositories: number;
+};
+
+/** One of an owner's repositories, with how many project skills it keeps. */
+export type OwnerRepository = { id: string; name: string; url: string; skills: number };
+
+/** Every repository of an owner that has project skills: the most skills first, then by name. */
+export type OwnerScan = { owner: Owner; repositories: OwnerRepository[]; warnings: string[] };
+
+/** The most skills first, then by name, whatever the locale. */
+export function sortRepositories(repositories: OwnerRepository[]): OwnerRepository[] {
+  const compare = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+  return [...repositories].sort((a, b) => b.skills - a.skills || compare(a.name, b.name));
+}

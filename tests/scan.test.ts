@@ -137,6 +137,7 @@ test('a copy is printed as `also in <paths>`', async () => {
   const lines: string[] = [];
   const code = await run(['scan', 'x'], {
     open: async () => source('.agents/skills/mps-tests', '.claude/skills/mps-tests'),
+    scanOwner: () => assert.fail('not an organization'),
     print: (text) => lines.push(text),
     error: () => {},
   });

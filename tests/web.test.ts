@@ -12,11 +12,12 @@ import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { JSDOM } from 'jsdom';
 import { createBrowserBackend } from '../src/browser.ts';
+import { parseGitHubOwner } from '../src/core/github.ts';
 import { renderMarkdown } from '../src/web/markdown.ts';
 import { createWebServer, listen, type WebScan } from '../src/web/server.ts';
-import { CLI, EXAMPLE_COMMIT, FIXTURE, open } from './helpers.ts';
+import { CLI, EXAMPLE_COMMIT, FIXTURE, open, owners } from './helpers.ts';
 
-const server = createWebServer(open);
+const server = createWebServer(open, owners);
 const base = await listen(server, 0);
 test.after(() => server.close());
 
@@ -48,7 +49,7 @@ test('serve: the page at the printed URL, with a field for the repository; the s
   assert.match(page.headers.get('content-type')!, /^text\/html/);
   const html = await page.text();
   assert.match(html, /<input id="repo" name="repo"/);
-  assert.match(html, /placeholder="https:\/\/github\.com\/owner\/repo, or a local directory"/);
+  assert.match(html, /placeholder="https:\/\/github\.com\/owner\/repo, an organization, or a local directory"/);
 
   const scanned = (await (await fetch(new URL(`/api/scan?repo=${encodeURIComponent(FIXTURE)}`, url))).json()) as WebScan;
   assert.deepEqual(scanned.skills.map((skill) => skill.name), ['code-style', 'commits', 'release-checklist']);
@@ -186,6 +187,42 @@ test('serve in the browser terminal → run it from the command line', async () 
   assert.match(await browser.run('skill-atlas help'), /serve \[--port <port>\] {11}open the local web view/);
 });
 
+async function owner(repo: string) {
+  const response = await fetch(new URL(`/api/owner?repo=${encodeURIComponent(repo)}`, base));
+  return { status: response.status, body: await response.json() };
+}
+
+test('an organization in the field: its repository count, from the API', async () => {
+  assert.deepEqual(await owner('github.com/JetBrains'), {
+    status: 200,
+    body: { id: 'JetBrains', url: 'https://github.com/JetBrains', repositories: 871 },
+  });
+  assert.deepEqual(await owner('github.com/nobody'), { status: 400, body: { error: 'Organization not found: https://github.com/nobody' } });
+  assert.deepEqual(await owner('github.com/..'), { status: 400, body: { error: 'Organization not found: https://github.com/..' } });
+  assert.deepEqual(await owner('github.com/JetBrains/example'), {
+    status: 400,
+    body: { error: 'Not a GitHub organization URL: github.com/JetBrains/example' },
+  });
+});
+
+test('an organization scanned: the API answers each repository with skills, the most first', async () => {
+  const { status, body } = await api('https://github.com/JetBrains');
+  assert.equal(status, 200);
+  assert.deepEqual(body, {
+    owner: { id: 'JetBrains', url: 'https://github.com/JetBrains', repositories: 871 },
+    repositories: [
+      { id: 'JetBrains/MPS', name: 'MPS', url: 'https://github.com/JetBrains/MPS', skills: 41 },
+      { id: 'JetBrains/intellij-community', name: 'intellij-community', url: 'https://github.com/JetBrains/intellij-community', skills: 38 },
+      { id: 'JetBrains/kotlin', name: 'kotlin', url: 'https://github.com/JetBrains/kotlin', skills: 6 },
+      { id: 'JetBrains/Exposed', name: 'Exposed', url: 'https://github.com/JetBrains/Exposed', skills: 1 },
+      { id: 'JetBrains/example', name: 'example', url: 'https://github.com/JetBrains/example', skills: 1 },
+      { id: 'JetBrains/koog', name: 'koog', url: 'https://github.com/JetBrains/koog', skills: 1 },
+    ],
+    warnings: [],
+  });
+  assert.deepEqual(await api('github.com/nobody'), { status: 400, body: { error: 'Organization not found: https://github.com/nobody' } });
+});
+
 /** The page's filter, exactly as the server sends it to the browser. */
 async function pageFilter(): Promise<typeof import('../src/web/filter.js')> {
   const response = await fetch(new URL('/filter.js', base));
@@ -296,12 +333,13 @@ async function openPage(path: string) {
     .replace(/<\/script>\s*<\/body>/, '})();</script></body>');
   assert.notEqual(page, html);
   const errors: unknown[] = [];
+  const asked: string[] = [];
   const dom = new JSDOM(page, {
     url: new URL(path, base).href,
     runScripts: 'dangerously',
     pretendToBeVisual: true,
     beforeParse(window) {
-      window.fetch = ((url: string, init?: RequestInit) => fetch(new URL(url, base), init)) as typeof fetch;
+      window.fetch = ((url: string, init?: RequestInit) => (asked.push(url), fetch(new URL(url, base), init))) as typeof fetch;
       window.HTMLElement.prototype.scrollIntoView = () => {};
       window.addEventListener('error', (event) => errors.push(event.error));
     },
@@ -317,6 +355,8 @@ async function openPage(path: string) {
   await until(() => !$('#repo-card').hidden || !$('#error').hidden || !!document.querySelector('.placeholder'));
   return {
     window, document, $, errors, until,
+    /** What the page asked the server for, in order. */
+    asked,
     /** The rows the filter shows: `name — description line`, highlights in brackets. */
     shown: () =>
       [...document.querySelectorAll('#skills li.item:not(.out)')].map((li) =>
@@ -458,5 +498,110 @@ test('filter on the page: back to the start page → no filter, and nothing brea
   assert.ok(page.document.querySelector('.placeholder'));
   page.type('a');
   page.key('Escape');
+  assert.deepEqual(page.errors, []);
+});
+
+/** The page's field, typed into a letter at a time, `pause` milliseconds apart. */
+async function typeRepository(page: Awaited<ReturnType<typeof openPage>>, text: string, from = '', pause = 0) {
+  const input = page.$('#repo') as HTMLInputElement;
+  input.value = from;
+  for (const letter of text) {
+    input.value += letter;
+    input.dispatchEvent(new page.window.Event('input'));
+    if (pause) await new Promise((resolve) => setTimeout(resolve, pause));
+  }
+}
+
+test('an organization in the field: its repository count at the right as it is typed, before Enter; asked once per name', async (t) => {
+  const page = await openPage('/');
+  t.after(page.close);
+  const count = page.$('#repo-count');
+  const owners = () => page.asked.filter((url) => url.startsWith('/api/owner'));
+  await typeRepository(page, 'github.com/JetBrains', '', 30); // as a person types
+  await page.until(() => !count.hidden);
+  assert.equal(count.textContent, '871 repos');
+  assert.equal(count.parentElement, page.$('#repo').parentElement);
+  assert.equal(page.$('#repo').nextElementSibling, count); // at the field's right
+  // After a short pause: one request for the whole name, not one per letter.
+  assert.deepEqual(owners(), ['/api/owner?repo=github.com%2FJetBrains']);
+  assert.deepEqual(page.asked.filter((url) => url.startsWith('/api/scan')), []); // no Enter, no scan
+
+  await typeRepository(page, '/kotlin', 'github.com/JetBrains');
+  assert.equal(count.hidden, true); // a repository is not an organization
+  await typeRepository(page, 'https://github.com/jetbrains');
+  await page.until(() => !count.hidden);
+  assert.equal(count.textContent, '871 repos');
+  assert.equal(owners().length, 1); // the same name, in any case, is not asked again
+
+  for (const name of ['nobody', '..']) {
+    await typeRepository(page, `github.com/${name}`);
+    await page.until(() => owners().length === (name === 'nobody' ? 2 : 3));
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.equal(count.hidden, true, name);
+  }
+  // Not found is an answer: typed again, it is not asked again.
+  await typeRepository(page, 'github.com/nobody');
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  assert.equal(owners().length, 3);
+  // A rate limit is not: the same name is asked again later.
+  for (const asked of [4, 5]) {
+    await typeRepository(page, 'github.com/busy-org');
+    await page.until(() => owners().length === asked);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.equal(count.hidden, true);
+    await typeRepository(page, 'github.com/');
+  }
+  assert.deepEqual(page.errors, []);
+});
+
+test('an organization scanned on the page: `N with skills, among them`, the first three, `+N more` shows the rest', async (t) => {
+  const page = await openPage(`/?repo=${encodeURIComponent('github.com/JetBrains')}`);
+  t.after(page.close);
+  await page.until(() => !!page.document.querySelector('.owner'));
+  const text = (selector: string) => [...page.document.querySelectorAll(selector)].map((element) => element.textContent);
+  const repositories = () =>
+    [...page.document.querySelectorAll('.owner li')].map((li) => `${li.querySelector('.repository-name')!.textContent} · ${li.querySelector('.repository-skills')!.textContent}`);
+  assert.deepEqual(text('.owner h2'), ['6 with skills, among them']);
+  assert.deepEqual(repositories(), ['MPS · 41 skills', 'intellij-community · 38 skills', 'kotlin · 6 skills']);
+  assert.deepEqual(text('#repo-card .repo-name, #repo-card .chip'), ['JetBrains', '871 repos', '6 with skills']);
+  await page.until(() => !page.$('#repo-count').hidden);
+  assert.equal(page.$('#repo-count').textContent, '871 repos');
+  assert.equal(page.$('#filter-box').hidden, true);
+
+  (page.document.querySelector('.owner .more') as HTMLElement).click();
+  assert.equal(page.document.querySelector('.owner .more'), null);
+  assert.deepEqual(repositories().slice(3), ['Exposed · 1 skill', 'example · 1 skill', 'koog · 1 skill']);
+  assert.deepEqual(page.errors, []);
+});
+
+test('an organization scanned on the page: a repository opens its own scan; Back returns to the organization, not scanned again', async (t) => {
+  const page = await openPage(`/?repo=${encodeURIComponent('github.com/JetBrains')}`);
+  t.after(page.close);
+  await page.until(() => !!page.document.querySelector('.owner .more'));
+  (page.document.querySelector('.owner .more') as HTMLElement).click();
+  (page.document.querySelector('[data-repository="JetBrains/example"]') as HTMLElement).click();
+  await page.until(() => page.selected() === 'commits');
+  assert.equal((page.$('#repo') as HTMLInputElement).value, 'https://github.com/JetBrains/example');
+  assert.equal(new URL(page.window.location.href).searchParams.get('repo'), 'https://github.com/JetBrains/example');
+  assert.equal(page.$('#repo-card .repo-name').textContent, 'JetBrains/example');
+  assert.equal(page.$('#repo-count').hidden, true);
+
+  page.window.history.back();
+  await page.until(() => !!page.document.querySelector('.owner'));
+  assert.equal((page.$('#repo') as HTMLInputElement).value, 'github.com/JetBrains');
+  assert.deepEqual(page.$('#repo-card').hidden, false);
+  // Shown as it was scanned: Back spends no code search on it.
+  const scans = page.asked.filter((url) => url.startsWith('/api/scan'));
+  assert.deepEqual(scans, ['/api/scan?repo=github.com%2FJetBrains', '/api/scan?repo=https%3A%2F%2Fgithub.com%2FJetBrains%2Fexample']);
+  assert.deepEqual(page.errors, []);
+});
+
+test('an organization without project skills on the page: said so, nothing more to show', async (t) => {
+  const page = await openPage(`/?repo=${encodeURIComponent('github.com/empty-org')}`);
+  t.after(page.close);
+  await page.until(() => !!page.document.querySelector('.owner'));
+  assert.equal(page.document.querySelector('.owner h2')!.textContent, 'No repositories with project skills');
+  assert.equal(page.document.querySelectorAll('.owner li').length, 0);
+  assert.equal(page.document.querySelector('.owner .more'), null);
   assert.deepEqual(page.errors, []);
 });
