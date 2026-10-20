@@ -10,6 +10,8 @@ import { scan, type Source } from '../core/scan.ts';
 import { renderMarkdown } from './markdown.ts';
 
 const PAGE = readFileSync(new URL('./index.html', import.meta.url));
+/** The page's skills filter, a module the tests run too. */
+const FILTER = readFileSync(new URL('./filter.js', import.meta.url));
 
 /** What the page shows for one skill. */
 export type WebSkill = {
@@ -35,7 +37,7 @@ export type WebScan = {
   warnings: string[];
 };
 
-/** `GET /`: the page; `GET /api/scan?repo=<GitHub URL | directory>`: a WebScan, or `{ error }`. */
+/** `GET /`: the page, `GET /filter.js` its filter; `GET /api/scan?repo=<GitHub URL | directory>`: a WebScan, or `{ error }`. */
 export function createWebServer(open: (input: string) => Promise<Source>): Server {
   return createServer(async (request, response) => {
     const url = new URL(request.url ?? '/', 'http://localhost');
@@ -47,6 +49,7 @@ export function createWebServer(open: (input: string) => Promise<Source>): Serve
 
     if (request.method !== 'GET') return json(405, { error: 'Only GET is supported' });
     if (url.pathname === '/') return send(200, 'text/html; charset=utf-8', PAGE);
+    if (url.pathname === '/filter.js') return send(200, 'text/javascript; charset=utf-8', FILTER);
     if (url.pathname !== '/api/scan') return json(404, { error: `Not found: ${url.pathname}` });
 
     const input = url.searchParams.get('repo')?.trim();
