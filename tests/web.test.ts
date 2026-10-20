@@ -181,3 +181,95 @@ test('serve in the browser terminal → run it from the command line', async () 
   assert.equal(await browser.run('skill-atlas serve'), 'The web view runs from the command line: ./skill-atlas serve');
   assert.match(await browser.run('skill-atlas help'), /serve \[--port <port>\] {11}open the local web view/);
 });
+
+/** The page's filter, exactly as the server sends it to the browser. */
+async function pageFilter(): Promise<typeof import('../src/web/filter.js')> {
+  const response = await fetch(new URL('/filter.js', base));
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('content-type')!, /^text\/javascript/);
+  return import(`data:text/javascript,${encodeURIComponent(await response.text())}`);
+}
+
+/** The shown skill with its highlights in brackets: `[com]mits — Write [com]mit messages…`. */
+type Shown = { name: { text: string; match: boolean }[]; description: { text: string; match: boolean }[] };
+const marked = (shown: Shown | null) =>
+  shown && [shown.name, shown.description].map((parts) => parts.map((p) => (p.match ? `[${p.text}]` : p.text)).join('')).join(' — ');
+
+const SKILLS = [
+  { name: 'code-style', description: 'How code looks here: four spaces, lines up to 120 characters. Run the formatter before committing.' },
+  { name: 'commits', description: 'Write commit messages the way this repository does. Use for every commit.' },
+  { name: 'release-checklist', description: '' },
+];
+
+test('filter: the page imports it from the server, on the skills the API returns', async () => {
+  const page = await (await fetch(base)).text();
+  assert.match(page, /import \{ firstSentence, show \} from '\/filter\.js';/);
+  assert.match(page, /<input id="filter" type="search"/);
+  const { show } = await pageFilter();
+  const { body } = await api(FIXTURE);
+  const kept = (query: string) => body.skills.filter((skill) => show(skill, query)).map((skill) => skill.name);
+  assert.deepEqual(kept('COMMIT'), ['code-style', 'commits']);
+  assert.deepEqual(kept('commit kotlin'), ['code-style']);
+});
+
+test('filter: every word, in any case, in the name or the description; the others are left out', async () => {
+  const { show } = await pageFilter();
+  const kept = (query: string) => SKILLS.filter((skill) => show(skill, query)).map((skill) => skill.name);
+  assert.deepEqual(kept(''), ['code-style', 'commits', 'release-checklist']);
+  assert.deepEqual(kept('   '), ['code-style', 'commits', 'release-checklist']);
+  assert.deepEqual(kept('CODE'), ['code-style']);
+  assert.deepEqual(kept('commit'), ['code-style', 'commits']);
+  assert.deepEqual(kept('commit  messages'), ['commits']);
+  assert.deepEqual(kept('style repository'), []);
+  assert.deepEqual(kept('release'), ['release-checklist']);
+});
+
+test('filter: every occurrence of every word highlighted, in the name and the description line', async () => {
+  const { show } = await pageFilter();
+  assert.equal(marked(show(SKILLS[1], 'Commit')), '[commit]s — Write [commit] messages the way this repository does.');
+  assert.equal(marked(show(SKILLS[1], 'com mes')), '[com]mits — Write [com]mit [mes]sages the way this repository does.');
+  assert.equal(marked(show(SKILLS[1], 'mit commit')), '[commit]s — Write [commit] messages the way this repository does.');
+  assert.equal(marked(show(SKILLS[1], '')), 'commits — Write commit messages the way this repository does.');
+  assert.equal(marked(show(SKILLS[2], 'list')), 'release-check[list] — ');
+});
+
+test('filter: a query that matches nothing leaves no skill; regular expression characters are text', async () => {
+  const { show } = await pageFilter();
+  assert.deepEqual(SKILLS.filter((skill) => show(skill, 'nothing-like-this')), []);
+  const tools = { name: 'c++-build', description: 'Builds (x) with c++ and .* globs.' };
+  assert.equal(marked(show(tools, 'C++')), '[c++]-build — Builds (x) with [c++] and .* globs.');
+  assert.equal(marked(show(tools, '(x')), 'c++-build — Builds [(x]) with c++ and .* globs.');
+  assert.equal(marked(show(tools, '.*')), 'c++-build — Builds (x) with c++ and [.*] globs.');
+  assert.equal(show(tools, 'a.b'), null);
+  assert.equal(show(tools, '[x'), null);
+});
+
+test('filter: a match only after the first sentence → the line around it, highlighted', async () => {
+  const { show } = await pageFilter();
+  assert.equal(marked(show(SKILLS[0], 'formatter')), 'code-style — …to 120 characters. Run the [formatter] before committing.');
+  const long = {
+    name: 'long',
+    description: `${'A sentence with many words that goes on '.repeat(3)}and then names the formatter at last, ${'and goes on after it for quite a while '.repeat(4)}end.`,
+  };
+  const line = marked(show(long, 'formatter'))!.slice('long — '.length);
+  assert.match(line, /^…\S.* names the \[formatter\] at last, .*\S…$/);
+  assert.ok(line.length <= 145, line);
+  assert.equal(line.indexOf('[formatter]'), line.indexOf('formatter') - 1);
+  assert.ok(line.indexOf('[formatter]') <= 32, line);
+});
+
+test('filter: the description line is still the first sentence when it holds an early match', async () => {
+  const { firstSentence, show } = await pageFilter();
+  assert.equal(firstSentence('One.\n  Two.'), 'One.');
+  assert.equal(marked(show(SKILLS[0], 'code formatter')), '[code]-style — How [code] looks here: four spaces, lines up to 120 characters.');
+});
+
+test('filter: smooth on the page; skills fold away and come back, highlights fade in; none with reduced motion', async () => {
+  const page = await (await fetch(base)).text();
+  assert.match(page, /ul#skills li\.item \{[^}]*transition: grid-template-rows [^}]*opacity[^}]*transform/);
+  assert.match(page, /ul#skills li\.item\.out \{ grid-template-rows: 0fr; opacity: 0;/);
+  assert.match(page, /ul#skills mark\.fresh \{ animation: mark-in/);
+  assert.match(page, /@media \(prefers-reduced-motion: reduce\) \{\s*ul#skills li\.item, ul#skills mark, \.list-empty \{ transition: none; animation: none; \}/);
+  assert.match(page, /'No skills match'/);
+  assert.match(page, /`\$\{count\} of \$\{result\.skills\.length\}`/);
+});

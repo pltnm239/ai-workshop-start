@@ -112,13 +112,27 @@
   }
   .chip.accent { background: rgba(111, 140, 255, 0.12); border-color: rgba(111, 140, 255, 0.28); color: #b9c6ff; }
   .chip.warn { background: rgba(242, 184, 75, 0.1); border-color: rgba(242, 184, 75, 0.28); color: var(--warning); }
-  .filter { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  .filter { position: relative; padding: 10px 12px; border-bottom: 1px solid var(--border); }
   .filter input {
-    width: 100%; height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border);
-    background: var(--bg-panel); outline: 0;
+    width: 100%; height: 32px; padding: 0 64px 0 10px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--bg-panel); outline: 0; transition: border-color .15s, box-shadow .15s;
   }
-  .filter input:focus { border-color: var(--accent); }
+  .filter input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(111, 140, 255, 0.14); }
+  .filter-count { position: absolute; right: 22px; top: 50%; transform: translateY(-50%); color: var(--muted); font: 11.5px var(--mono); pointer-events: none; }
   ul#skills { list-style: none; margin: 0; padding: 6px; overflow: auto; flex: 1; }
+  /* A filtered-out skill folds away and the others slide into its place; one that comes back unfolds. */
+  ul#skills li.item {
+    display: grid; grid-template-rows: 1fr; opacity: 1;
+    transition: grid-template-rows .24s cubic-bezier(.2, .7, .2, 1), opacity .2s ease, transform .24s cubic-bezier(.2, .7, .2, 1);
+  }
+  ul#skills li.item.out { grid-template-rows: 0fr; opacity: 0; transform: translateX(-8px) scale(.98); pointer-events: none; }
+  ul#skills li.item > .fold { min-height: 0; overflow: hidden; }
+  ul#skills mark {
+    color: var(--text); background: rgba(165, 113, 255, 0.3); border-radius: 3px;
+    box-shadow: 0 0 0 1px rgba(165, 113, 255, 0.35); transition: background-color .2s;
+  }
+  ul#skills mark.fresh { animation: mark-in .3s ease-out; }
+  @keyframes mark-in { from { background-color: transparent; box-shadow: 0 0 0 1px transparent; } }
   ul#skills li button {
     width: 100%; text-align: left; border: 0; background: none; cursor: pointer;
     padding: 10px 12px; border-radius: 10px; display: grid; gap: 3px; position: relative;
@@ -193,12 +207,16 @@
   .examples { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 22px; }
   .examples button { cursor: pointer; }
   .examples button:hover { border-color: var(--accent); color: var(--text); }
-  .list-empty { color: var(--muted); padding: 24px 16px; text-align: center; font-size: 13px; }
+  .list-empty { color: var(--muted); padding: 24px 16px; text-align: center; font-size: 13px; animation: fade-in .25s ease; }
+  @keyframes fade-in { from { opacity: 0; transform: translateY(-4px); } }
   .skeleton { height: 54px; margin: 6px; border-radius: 10px; background: linear-gradient(90deg, var(--bg-panel), var(--bg-hover), var(--bg-panel)); background-size: 200% 100%; animation: shimmer 1.2s infinite; }
   @keyframes shimmer { to { background-position: -200% 0; } }
   .spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(255,255,255,.35); border-top-color: white; animation: spin .7s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
   [hidden] { display: none !important; }
+  @media (prefers-reduced-motion: reduce) {
+    ul#skills li.item, ul#skills mark, .list-empty { transition: none; animation: none; }
+  }
 
   @media (max-width: 820px) {
     header { flex-wrap: wrap; }
@@ -233,7 +251,10 @@
     <div id="repo-card" class="repo" hidden></div>
     <div id="error" class="notice error" role="alert" hidden></div>
     <details id="warnings" class="notice warning" hidden><summary></summary><ul></ul></details>
-    <div class="filter" id="filter-box" hidden><input id="filter" type="search" placeholder="Filter skills" aria-label="Filter skills"></div>
+    <div class="filter" id="filter-box" hidden>
+      <input id="filter" type="search" placeholder="Filter by name or description" aria-label="Filter skills" aria-controls="skills">
+      <span class="filter-count" id="filter-count" aria-live="polite"></span>
+    </div>
     <ul id="skills" role="listbox" aria-label="Skills"></ul>
   </aside>
   <section id="view" aria-live="polite"></section>
@@ -255,10 +276,13 @@
 </template>
 
 <script type="module">
+  import { firstSentence, show } from '/filter.js';
   const $ = (selector) => document.querySelector(selector);
   const form = $('#scan'), input = $('#repo'), go = $('#go'), list = $('#skills'), view = $('#view');
   const filter = $('#filter');
   let result = null, selected = null, mode = 'preview', request = 0;
+  /** The list rows of the scanned skills, by id: built once per scan, then filtered in place. */
+  let rows = new Map();
 
   /** An element with attributes and children; text is always text, never HTML. */
   function h(tag, attributes = {}, ...children) {
@@ -272,10 +296,6 @@
     return element;
   }
 
-  const firstSentence = (text) => {
-    const line = text.replace(/\s+/g, ' ').trim();
-    return /^.*?[.!?](?=\s|$)/.exec(line)?.[0] ?? line;
-  };
   const shortRoot = (root) => root.split('/')[0];
   const onGitHub = () => result?.repository.url.startsWith('https://github.com/');
 
@@ -336,19 +356,54 @@
     box.hidden = warnings.length === 0;
     box.querySelector('summary').textContent = `${warnings.length} ${warnings.length === 1 ? 'warning' : 'warnings'}`;
     box.querySelector('ul').replaceChildren(...warnings.map((warning) => h('li', {}, warning)));
-    $('#filter-box').hidden = skills.length < 6;
+    $('#filter-box').hidden = skills.length < 2;
+    rows = new Map(skills.map((skill) => {
+      const name = h('span', { class: 'skill-title' }, skill.name);
+      const description = h('span', { class: 'skill-description', hidden: !skill.description }, firstSentence(skill.description));
+      const li = h('li', { class: 'item' }, h('div', { class: 'fold' },
+        h('button', { type: 'button', role: 'option', 'aria-selected': 'false', 'data-id': skill.id, onclick: () => select(skill) },
+          h('span', { class: 'skill-name' }, name, h('span', { class: 'chip', title: skill.path }, shortRoot(skill.root))),
+          description)));
+      return [skill.id, { li, name, description, marked: '', marks: { name: [], description: [] } }];
+    }));
+    list.replaceChildren(...[...rows.values()].map((row) => row.li), h('li', { class: 'list-empty', id: 'no-match', hidden: true }, 'No skills match'));
     renderList();
   }
 
+  /** Folds away the skills the filter leaves out and highlights the matches in the others. */
   function renderList() {
-    const query = filter.value.trim().toLowerCase();
-    const shown = result.skills.filter((s) => !query || s.name.toLowerCase().includes(query) || s.description.toLowerCase().includes(query));
-    list.replaceChildren(...shown.map((skill) => h('li', {},
-      h('button', { type: 'button', role: 'option', 'aria-selected': String(skill === selected), 'data-id': skill.id, onclick: () => select(skill) },
-        h('span', { class: 'skill-name' }, skill.name, h('span', { class: 'chip', title: skill.path }, shortRoot(skill.root))),
-        skill.description && h('span', { class: 'skill-description' }, firstSentence(skill.description))))));
-    if (shown.length === 0) list.replaceChildren(h('li', { class: 'list-empty' }, 'No skills match'));
+    const query = filter.value;
+    let count = 0;
+    for (const skill of result.skills) {
+      const row = rows.get(skill.id);
+      const shown = show(skill, query);
+      row.li.classList.toggle('out', !shown);
+      row.li.inert = !shown;
+      if (!shown) continue;
+      count++;
+      // Only touch the text when it changes, and fade in only the marks where there were none.
+      const marked = JSON.stringify(shown);
+      if (marked === row.marked) continue;
+      row.marked = marked;
+      for (const field of ['name', 'description']) {
+        const before = row.marks[field], marks = [];
+        let at = 0;
+        row[field].replaceChildren(...shown[field].map(({ text, match }) => {
+          const start = at;
+          at += text.length;
+          if (!match) return text;
+          marks.push([start, at]);
+          return h('mark', { class: !before.some(([from, to]) => from < at && start < to) && 'fresh' }, text);
+        }));
+        row.marks[field] = marks;
+      }
+    }
+    $('#no-match').hidden = count > 0;
+    $('#filter-count').textContent = query.trim() ? `${count} of ${result.skills.length}` : '';
   }
+
+  /** The skills the filter shows, in the list's order. */
+  const shownOptions = () => [...list.querySelectorAll('li.item:not(.out) button[role="option"]')];
 
   function select(skill, push = true) {
     selected = skill;
@@ -414,12 +469,19 @@
     load(repo);
   });
   filter.addEventListener('input', renderList);
+  filter.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && filter.value) { event.preventDefault(); filter.value = ''; renderList(); }
+    if (event.key === 'Enter' || event.key === 'ArrowDown') {
+      const first = shownOptions()[0];
+      if (first) { event.preventDefault(); first.click(); first.focus(); }
+    }
+  });
 
   document.addEventListener('keydown', (event) => {
     const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName);
     if (event.key === '/' && !typing) { event.preventDefault(); input.focus(); input.select(); return; }
     if (typing || !result || !selected || !['ArrowDown', 'ArrowUp', 'j', 'k'].includes(event.key)) return;
-    const buttons = [...list.querySelectorAll('button[role="option"]')];
+    const buttons = shownOptions();
     const index = buttons.findIndex((button) => button.dataset.id === selected.id);
     const next = buttons[index + (event.key === 'ArrowDown' || event.key === 'j' ? 1 : -1)];
     if (next) { event.preventDefault(); next.click(); next.focus(); }
@@ -431,7 +493,11 @@
     if (!repo) { input.value = ''; result = null; list.replaceChildren(); $('#repo-card').hidden = true; return welcome(); }
     if (result && repo === input.value.trim()) {
       const skill = result.skills.find((s) => s.name === name);
-      if (skill) { selected = skill; renderList(); renderSkill(); }
+      if (skill) {
+        selected = skill;
+        for (const button of list.querySelectorAll('button[role="option"]')) button.setAttribute('aria-selected', String(button.dataset.id === skill.id));
+        renderSkill();
+      }
       return;
     }
     input.value = repo;
