@@ -424,6 +424,9 @@
   function showOwner(all = false) {
     const { owner, repositories, warnings } = result;
     selected = null;
+    // The scan knows the count too: the field shows it, if it was not there yet.
+    if (!owners.has(owner.id.toLowerCase())) owners.set(owner.id.toLowerCase(), Promise.resolve(owner));
+    showCount();
     const card = $('#repo-card');
     card.hidden = false;
     card.replaceChildren(

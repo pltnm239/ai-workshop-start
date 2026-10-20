@@ -14,7 +14,7 @@ test('an organization: its repository count, then each repository with skills, t
   assert.equal(
     scanned.stdout,
     [
-      'JetBrains · 871 repositories, 5 with skills',
+      'JetBrains · 871 repositories, 6 with skills',
       'MPS · 41 skills',
       '  https://github.com/JetBrains/MPS',
       'intellij-community · 38 skills',
@@ -23,6 +23,8 @@ test('an organization: its repository count, then each repository with skills, t
       '  https://github.com/JetBrains/kotlin',
       'Exposed · 1 skill',
       '  https://github.com/JetBrains/Exposed',
+      'example · 1 skill',
+      '  https://github.com/JetBrains/example',
       'koog · 1 skill',
       '  https://github.com/JetBrains/koog',
     ].join('\n'),

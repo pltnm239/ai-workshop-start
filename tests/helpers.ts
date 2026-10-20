@@ -35,7 +35,7 @@ const range = (count: number) => Array.from({ length: count }, (_, index) => ind
 /**
  * Every SKILL.md GitHub's code search finds in the JetBrains organization, two pages of them:
  * intellij-community keeps each of its 38 skills twice and one more in a plugin, MPS has 41 and
- * kotlin 6, Exposed and koog one each, and the docs only an example that is not a project skill.
+ * kotlin 6, Exposed, example and koog one each, and the docs only an example that is not a project skill.
  */
 export const ORGANIZATION_HITS = [
   ...range(38).flatMap((index) => [hit('intellij-community', `.agents/skills/s${index}/SKILL.md`), hit('intellij-community', `.claude/skills/s${index}/SKILL.md`)]),
@@ -44,6 +44,7 @@ export const ORGANIZATION_HITS = [
   ...range(6).map((index) => hit('kotlin', `.claude/skills/k${index}/SKILL.md`)),
   hit('koog', 'agent/skills/writing-lint-checks/SKILL.md'),
   hit('Exposed', '.github/skills/code-style/SKILL.md'),
+  hit('example', '.claude/skills/commits/SKILL.md'),
   hit('docs', 'docs/.claude/skills/x/SKILL.md'),
 ];
 
