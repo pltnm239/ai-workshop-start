@@ -6,7 +6,7 @@ description: Review a diff, branch or pull request. A short summary, then inline
 
 ## Steps
 1. Read `AGENTS.md` and `spec/`. The spec is what the change is checked against.
-2. Read the whole diff: `git diff <base>...<head>`.
+2. Read the whole diff, from the base to the head.
 3. Run the test and typecheck commands from `AGENTS.md` on the head. A failure is a finding.
 4. Check: the behavior matches the spec, every spec case has an integration test, the spec is updated with the code, nothing unrelated changed.
 
@@ -22,9 +22,9 @@ Repro: the exact command or input, what happens, what the spec expects.
 ```
 
 ## Publish
-Post the review to the pull request, always with `--repo <owner>/<repo>` (a fork's `gh` defaults to the original repository):
-- The summary: `gh pr review <n> --repo <owner>/<repo> --comment --body "<summary>"`
-- Each inline comment, on its `file:line`: `gh api repos/<owner>/<repo>/pulls/<n>/comments -f body="<comment with its Repro>" -f commit_id=<head sha> -f path=<file> -F line=<line> -f side=RIGHT`
+Post the review to the pull request, in the repository the PR is in (a fork, not the original):
+- The summary, as one review.
+- Each inline comment on its `file:line`, with its `Repro:`.
 
 ## Rules
 - A comment without **where** (`file:line`) or **how to reproduce** (a command or an input that shows it) is not a comment: reproduce it, or drop it.

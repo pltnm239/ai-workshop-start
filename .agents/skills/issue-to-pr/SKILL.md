@@ -4,24 +4,24 @@ description: Take a GitHub issue to a merged pull request. Implement it with tes
 ---
 # Issue to PR
 
-Always pass `--repo <owner>/<repo>` to `gh`: a fork's `gh` defaults to the original repository.
+Work in the repository the issue is in. If it is a fork, never touch the original repository.
 
 ## Steps
-1. **Read the issue**: `gh issue view <n> --repo <owner>/<repo> --comments`. If it is ambiguous, ask before writing code.
+1. **Read the issue** with its comments. If it is ambiguous, ask before writing code.
 2. **Read** `AGENTS.md` and `spec/`. Update the spec together with the code.
-3. **Branch** from an up to date `main`: `git switch -c issue-<n>-<short-name>`. Tell the issue: the branch.
+3. **Branch** from an up to date `main`, named after the issue. Tell the issue: the branch.
 4. **Implement** the issue. Add integration tests for every case it adds to the spec.
 5. **Check** with the commands from `AGENTS.md`: the tests and the typecheck must pass.
 6. **Commit and push** the branch. No AI attribution lines in commits or in the PR.
-7. **Open the PR**: `gh pr create --repo <owner>/<repo> --base main --head <branch>`. Title: what changed. Body: `Closes #<n>`, then a few lines on the change and how to run its tests. Tell the issue: the PR link.
+7. **Open the PR** into `main`. Title: what changed. Body: it closes the issue, then a few lines on the change and how to run its tests. Tell the issue: the PR link.
 8. **Review** the PR with the `code-review` skill. It posts the summary and the inline comments to the PR. Tell the issue: the verdict and how many findings.
 9. **Fix** each comment: reproduce it with its `Repro:`, fix it, add a test. New commits, no force-push. Push, and reply on the thread with the commit.
 10. **Review again** until nothing blocks. A finding you disagree with gets a reply with the reason, not silence.
-11. **Merge** when CI is green and the review has nothing blocking: `gh pr merge <n> --repo <owner>/<repo> --merge`.
+11. **Merge** the PR when CI is green and the review has nothing blocking.
 12. **Confirm**: CI on `main` is green, the issue is closed. Tell the issue: merged, with the PR link.
 
 ## Telling the issue
-`gh issue comment <n> --repo <owner>/<repo> --body "<text>"`, at the four places above.
+A comment on the issue at the four places above.
 - One to three lines each: what happened and a link. No details: they are in the PR.
 - Stopped for a reason from the rules below? Tell the issue that too: why, and what is needed.
 
