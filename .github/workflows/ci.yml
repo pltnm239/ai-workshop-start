@@ -29,3 +29,46 @@ jobs:
         run: |
           ./skill-atlas help
           ./skill-atlas scan ./fixture
+  ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container: mcr.microsoft.com/playwright:v1.64.1-noble
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: UI tests
+        run: npx playwright test
+      - name: Report
+        if: always()
+        run: node scripts/ui-report.ts --run-url=${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} test-results/report.json | tee ui-report.md >> "$GITHUB_STEP_SUMMARY"
+      - name: Artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ui-tests
+          path: |
+            playwright-report
+            test-results
+            ui-report.md
+          retention-days: 14
+      - name: Tell the pull request
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fs = require('fs');
+            const marker = '<!-- ui-tests -->';
+            const body = fs.existsSync('ui-report.md') ? fs.readFileSync('ui-report.md', 'utf8') : `${marker}\n### UI tests: the run did not finish\n\n[The run](${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId})\n`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+            const existing = comments.find((comment) => comment.body.includes(marker));
+            if (existing) await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            else await github.rest.issues.createComment({ owner, repo, issue_number, body });

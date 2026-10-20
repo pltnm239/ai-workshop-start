@@ -37,3 +37,12 @@ Same input and core as the CLI; *nothing is stored*. Listens on `127.0.0.1` only
 | A query that matches nothing | `No skills match` |
 | A query with regular expression characters, `c++` or `(x` | matched as text |
 | A match only after the first sentence | the line around it, highlighted |
+## UI tests
+Playwright, `tests/ui/*.spec.ts`, on a fixed server (`tests/ui/server.ts`): a recorded repository and a recorded organization, no live GitHub, any other request is blocked.
+- **Covered**: the start page, a scan and the first skill, Preview and Source, `also in` copies, HTML shown as text, the malformed front matter warning, the filter and Escape, no match, an unreachable repository, an organization with `+N more`, the address on reload
+- **Screenshots**: every screen above is compared with `tests/ui/__screenshots__/`. **A changed pixel fails the check**: no tolerance
+- **Deterministic**: shadows and backdrop blur are off in screenshots (a blur is not drawn identically on each run), fixed viewport 1280×720, scale 1, locale, time zone, dark scheme, reduced motion, animations off, one worker
+- **Every run is recorded**: a video and a trace per test, an HTML report
+- **Where**: screenshots are only equal in the same system, so they are made and compared in the Playwright container of the version in `package.json`, locally and in CI. On the Mac, `npm run test:ui` checks the behavior, not the pixels
+- **The report in the PR**: every run, passed or failed, writes the job summary and one PR comment (updated on each run: how many tests passed, or the failed ones and why); the artifact has the expected, actual and diff images, the videos and the traces
+- **An intended change**: `npm run test:ui:update`, then commit the new baselines

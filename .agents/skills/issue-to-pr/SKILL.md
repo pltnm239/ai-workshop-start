@@ -17,7 +17,7 @@ Work in the repository the issue is in. If it is a fork, never touch the origina
 8. **Review** the PR with the `code-review` skill. It posts the summary and the inline comments to the PR. Tell the issue: `review 1 of 3`, the verdict and how many findings.
 9. **Fix** each comment: reproduce it with its `Repro:`, fix it, add a test. New commits, no force-push. Push, and reply on the thread with the commit or the reason for not fixing. A comment already answered is handled (see `address-review`): do not answer it again.
 10. **Review the fixes**, not the whole PR again. Only a real problem blocks. Tell the issue: `review <n> of 3`. At most 3 rounds.
-11. **Merge** the PR as soon as the review has nothing blocking and CI is green. Do not wait for more review. CI still running: wait for it to finish, that is all.
+11. **Merge** the PR as soon as the review has nothing blocking and CI is green. Do not wait for more review. CI still running: wait for it to finish, that is all. Tell the issue: the test result, with a link to the report in the PR.
 12. **Confirm**: CI on `main` is green, the issue is closed. Tell the issue: merged, with the PR link.
 
 Stopped without merging, for a reason from the rules below? Leave the PR open and tell the issue why. Comments added to it later are for `address-review`.
