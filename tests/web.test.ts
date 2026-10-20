@@ -341,6 +341,9 @@ async function openPage(path: string) {
     beforeParse(window) {
       window.fetch = ((url: string, init?: RequestInit) => (asked.push(url), fetch(new URL(url, base), init))) as typeof fetch;
       window.HTMLElement.prototype.scrollIntoView = () => {};
+      // jsdom has <dialog> but not its methods: open and close it as a browser would, minus the backdrop.
+      window.HTMLDialogElement.prototype.showModal = function () { this.open = true; };
+      window.HTMLDialogElement.prototype.close = function () { this.open = false; };
       window.addEventListener('error', (event) => errors.push(event.error));
     },
   });
@@ -603,5 +606,58 @@ test('an organization without project skills on the page: said so, nothing more 
   assert.equal(page.document.querySelector('.owner h2')!.textContent, 'No repositories with project skills');
   assert.equal(page.document.querySelectorAll('.owner li').length, 0);
   assert.equal(page.document.querySelector('.owner .more'), null);
+  assert.deepEqual(page.errors, []);
+});
+
+test('help: the button at the bottom right of every screen, outside the scrolled view', async (t) => {
+  const page = await (await fetch(base)).text();
+  assert.match(page, /#help \{\s*position: fixed; right: 20px; bottom: 20px;/);
+  for (const path of ['/', `/?repo=${encodeURIComponent(FIXTURE)}`, `/?repo=${encodeURIComponent('github.com/nowhere/missing')}`]) {
+    const opened = await openPage(path);
+    t.after(opened.close);
+    const button = opened.$('#help');
+    assert.equal(button.getAttribute('aria-label'), 'Help', path);
+    assert.equal(button.parentElement, opened.document.body, path);
+    assert.equal((opened.$('#help-dialog') as HTMLDialogElement).open, false, path);
+  }
+});
+
+test('help: short and clear, what the app does, then how to scan, read and filter, and the keys', async (t) => {
+  const page = await openPage('/');
+  t.after(page.close);
+  const dialog = page.$('#help-dialog');
+  assert.equal(dialog.querySelector('h2')!.textContent, 'How to use Skill Atlas');
+  assert.deepEqual([...dialog.querySelectorAll('h3')].map((h3) => h3.textContent), ['Scan', 'Read', 'Filter', 'Keys']);
+  const text = dialog.textContent!.replace(/\s+/g, ' ');
+  for (const part of ['every agent skill in a repository', 'stores nothing', 'GitHub repository, an organization or a local directory',
+    'Preview', 'Source', 'reload it or share it', 'every word is in its name or description', 'the repository field', 'closes this help'])
+    assert.ok(text.includes(part), part);
+  // Short: a few lines a section, not a manual.
+  assert.ok(dialog.querySelectorAll('li').length <= 8, 'at most 8 points');
+  assert.ok(text.length < 1200, `${text.length} characters`);
+});
+
+test('help on the page: the button opens it, ✕ or a click beside it closes it; the page keys wait', async (t) => {
+  const page = await openPage(`/?repo=${encodeURIComponent(FIXTURE)}`);
+  t.after(page.close);
+  const dialog = page.$('#help-dialog') as HTMLDialogElement;
+  const open = () => { page.$('#help').click(); assert.equal(dialog.open, true); };
+  open();
+  page.key('/', page.document.body);
+  assert.notEqual(page.document.activeElement, page.$('#repo'));
+  page.key('ArrowDown', page.document.body);
+  assert.equal(page.selected(), 'code-style');
+  page.$('#help-close').click();
+  assert.equal(dialog.open, false);
+  open();
+  // Inside it: stays open. On the dialog itself, which is only its backdrop: closes.
+  (dialog.querySelector('.help p') as HTMLElement).click();
+  assert.equal(dialog.open, true);
+  dialog.click();
+  assert.equal(dialog.open, false);
+  page.key('ArrowDown', page.document.body);
+  assert.equal(page.selected(), 'commits');
+  page.key('/', page.document.body);
+  assert.equal(page.document.activeElement, page.$('#repo'));
   assert.deepEqual(page.errors, []);
 });
