@@ -12,7 +12,7 @@ The change is visible in the web view: a new control, a new view, a changed beha
 2. Open the page in a browser and record the browser window. 10 to 40 seconds.
 3. Play one case from the table, or write one for the issue. Slowly: type the input, wait for the result, stay on the result for two seconds.
 4. Look at the video, or at frames from it. A blank page or an error on screen: record again.
-5. Attach the video to the PR, named `demo-<issue number>-<case>`. One line in the PR: what the video shows.
+5. Upload the video into a **comment on the PR**, through the browser: open the PR signed in to GitHub, drop the file into the comment box, wait for the upload to finish, then post the comment. One line in it: what the video shows. Under 10 MB, as a GIF or an MP4.
 6. A new case that will repeat goes into the table below, in the same PR.
 
 ## Cases
@@ -27,6 +27,8 @@ Pinned commits, so the video is the same every time.
 | Organization | `github.com/JetBrains` | Scan | the repositories with skills (live, can be slow) |
 
 ## Rules
+- **Never put the video in the repository**: not in a commit, a branch or a file of the PR. GitHub keeps the uploaded file itself.
+- No browser signed in to GitHub? Do not fall back to a commit. Say in the PR that the video was recorded but not uploaded, and where the file is.
 - No secrets on screen: never type or show the token.
 - Under 40 seconds, one case per video.
 - No AI attribution in the video name or in the PR text.

@@ -7,7 +7,7 @@ Integration tests for every case in the spec.
 - All tests pass locally, the UI tests too (`npm run test:ui:docker`)
 - The CI build is green
 - A PR is open in this repository, not in the original one
-- Attach a demo video to the PR, when applicable (see the `demo-video` skill)
+- Attach a demo video to the PR as a comment, when applicable, never as a file in the repository (see the `demo-video` skill)
 
 ## Commands
 - `npm ci`: first, in a fresh checkout
