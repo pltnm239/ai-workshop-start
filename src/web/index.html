@@ -226,6 +226,33 @@
   .spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(255,255,255,.35); border-top-color: white; animation: spin .7s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
   [hidden] { display: none !important; }
+
+  /* Help: the button at the bottom right, and its dialog */
+  #help {
+    position: fixed; right: 20px; bottom: 20px; z-index: 2; width: 40px; height: 40px; border-radius: 50%;
+    display: grid; place-items: center; cursor: pointer; color: var(--text-soft);
+    background: var(--bg-panel); border: 1px solid var(--border-strong); box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+    transition: background .15s, color .15s, border-color .15s;
+  }
+  #help:hover { background: var(--bg-hover); color: var(--text); border-color: var(--accent); }
+  dialog#help-dialog {
+    width: min(540px, calc(100vw - 40px)); max-height: calc(100vh - 40px); padding: 0; overflow: auto;
+    background: var(--bg-raised); color: var(--text-soft); border: 1px solid var(--border-strong); border-radius: var(--radius);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  }
+  dialog#help-dialog::backdrop { background: rgba(8, 9, 11, 0.6); backdrop-filter: blur(4px); }
+  .help { padding: 22px 26px 24px; font-size: 13.5px; }
+  .help-head { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .help-head h2 { margin: 0; color: var(--text); font-size: 18px; letter-spacing: -0.01em; }
+  .help-head .button { margin-left: auto; width: 30px; padding: 0; justify-content: center; }
+  .help h3 { margin: 16px 0 4px; color: var(--text); font-size: 13px; text-transform: uppercase; letter-spacing: .06em; }
+  .help p { margin: 0; }
+  .help ul { margin: 0; padding-left: 1.2em; }
+  .help li + li { margin-top: 2px; }
+  .help code { font: 12px var(--mono); color: var(--text); }
+  .help dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; align-items: center; }
+  .help dd { margin: 0; }
+
   @media (prefers-reduced-motion: reduce) {
     ul#skills li.item, ul#skills mark, ul#skills mark.fresh, .list-empty { transition: none; animation: none; }
   }
@@ -272,6 +299,41 @@
   </aside>
   <section id="view" aria-live="polite"></section>
 </main>
+
+<button id="help" type="button" aria-label="Help" title="Help" aria-haspopup="dialog" aria-controls="help-dialog">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+</button>
+<dialog id="help-dialog" aria-labelledby="help-title">
+  <div class="help">
+    <div class="help-head">
+      <h2 id="help-title">How to use Skill Atlas</h2>
+      <button class="button small" id="help-close" type="button" aria-label="Close">✕</button>
+    </div>
+    <p>Skill Atlas finds every agent skill in a repository: each <code>SKILL.md</code> under <code>.agents/skills</code>, <code>.claude/skills</code>, <code>.github/skills</code> or <code>agent/skills</code>. It runs on this machine and stores nothing.</p>
+    <h3>Scan</h3>
+    <ul>
+      <li>Paste a GitHub repository, an organization or a local directory in the field, then press Enter.</li>
+      <li>An organization: its repositories with the most skills. Open one to scan it, Back to return.</li>
+    </ul>
+    <h3>Read</h3>
+    <ul>
+      <li>Pick a skill in the list: its description, path and front matter.</li>
+      <li><b>Preview</b> renders its SKILL.md, <b>Source</b> shows it as written.</li>
+      <li>The address keeps the repository and the skill: reload it or share it.</li>
+    </ul>
+    <h3>Filter</h3>
+    <ul>
+      <li>Type words: a skill stays when every word is in its name or description.</li>
+    </ul>
+    <h3>Keys</h3>
+    <dl>
+      <dt><kbd>/</kbd></dt><dd>the repository field</dd>
+      <dt><kbd>↑</kbd> <kbd>↓</kbd> or <kbd>j</kbd> <kbd>k</kbd></dt><dd>the previous or next skill</dd>
+      <dt><kbd>Enter</kbd> or <kbd>↓</kbd></dt><dd>in the filter: the first match</dd>
+      <dt><kbd>Esc</kbd></dt><dd>clears the filter, closes this help</dd>
+    </dl>
+  </div>
+</dialog>
 
 <template id="welcome">
   <div class="placeholder">
@@ -576,7 +638,24 @@
     }
   });
 
+  // Help: the button opens it; ✕, Escape or a click beside it closes it, and the focus goes back to the button.
+  const help = $('#help-dialog');
+  $('#help').addEventListener('click', () => help.showModal());
+  $('#help-close').addEventListener('click', () => help.close());
+  // Beside it is outside its box, from the press to the click: a drag out of its text, or its scrollbar, is not.
+  const beside = (event) => {
+    const box = help.getBoundingClientRect();
+    return event.target === help && (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom);
+  };
+  let pressedBeside = false;
+  help.addEventListener('mousedown', (event) => { pressedBeside = beside(event); });
+  help.addEventListener('click', (event) => { if (pressedBeside && beside(event)) help.close(); pressedBeside = false; });
+  // The browser gives the focus back to what had it, which is not the button when a click does not focus it (Safari).
+  help.addEventListener('close', () => $('#help').focus());
+
   document.addEventListener('keydown', (event) => {
+    // The page's keys are for the page, not for the help over it.
+    if (help.open) return;
     const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName);
     if (event.key === '/' && !typing) { event.preventDefault(); input.focus(); input.select(); return; }
     if (typing || !result || !selected || !['ArrowDown', 'ArrowUp', 'j', 'k'].includes(event.key)) return;

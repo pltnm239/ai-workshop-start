@@ -12,6 +12,11 @@ Same input and core as the CLI; *nothing is stored*. Listens on `127.0.0.1` only
 - Warnings and errors, as in the CLI, shown on the page
 - The address keeps the repository and the skill: `/?repo=<input>#<skill>`; reload shows the same
 - JetBrains Air style: dark, gradient accent, Inter and JetBrains Mono
+- A **help button**, `?`, fixed at the bottom right of every screen; it opens the help; see [Help](#help)
+## Help
+- A **dialog** over the page: what Skill Atlas does, then how to scan, read and filter, and the keys. *Short*: one screen, no scrolling at 1280×720
+- Closed by ✕, by Escape or by a click beside it; the focus goes back to the help button
+- While it is open, the page's keys (`/`, ↑/↓, `j`/`k`) do nothing
 ## Filter
 - The query's **words**, in any case: a skill stays when *every word* is in its name or its description
 - Every occurrence of every word is **highlighted**, in the name and in the description line
@@ -39,7 +44,7 @@ Same input and core as the CLI; *nothing is stored*. Listens on `127.0.0.1` only
 | A match only after the first sentence | the line around it, highlighted |
 ## UI tests
 Playwright, `tests/ui/*.spec.ts`, on a fixed server (`tests/ui/server.ts`): a recorded repository and a recorded organization, no live GitHub, any other request is blocked.
-- **Covered**: the start page, a scan and the first skill, Preview and Source, `also in` copies, HTML shown as text, the malformed front matter warning, the filter and Escape, no match, an unreachable repository, an organization with `+N more`, the address on reload
+- **Covered**: the start page, a scan and the first skill, Preview and Source, `also in` copies, HTML shown as text, the malformed front matter warning, the filter and Escape, no match, an unreachable repository, an organization with `+N more`, the address on reload, the help and how it closes
 - **Screenshots**: every screen above is compared with `tests/ui/__screenshots__/`. **A changed pixel fails the check**: no tolerance
 - **Deterministic**: shadows and backdrop blur are off in screenshots (a blur is not drawn identically on each run), fixed viewport 1280×720, scale 1, locale, time zone, dark scheme, reduced motion, animations off, one worker
 - **Every run is recorded**: a video and a trace per test, an HTML report
