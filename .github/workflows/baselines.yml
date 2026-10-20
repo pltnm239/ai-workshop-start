@@ -1,0 +1,26 @@
+# Throwaway: the screenshot baselines of 10-documentation, made in CI's Playwright container and
+# printed to the log, for a machine that cannot pull the container. Never merged.
+name: Baselines
+on:
+  push:
+    branches: [10-documentation-baselines]
+permissions:
+  contents: read
+jobs:
+  baselines:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container: mcr.microsoft.com/playwright:v1.64.1-noble
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright test --update-snapshots
+      - name: Print
+        run: |
+          tar czf /tmp/s.tgz tests/ui/__screenshots__
+          sha256sum /tmp/s.tgz
+          echo BEGIN; base64 -w 100 /tmp/s.tgz | sed 's/^/B64:/'; echo END
