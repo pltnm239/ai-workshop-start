@@ -93,3 +93,30 @@ test('more SKILL.md files than code search returns, or a search that timed out �
     'GitHub code search returns 1000 of the 1500 SKILL.md files; some repositories may be missing',
   ]);
 });
+
+test('GitHub asks to wait a few seconds → the scan waits and goes on; a longer rate limit → a clear message', async () => {
+  const owner = { status: 200, body: { login: 'empty-org', html_url: 'https://github.com/empty-org', public_repos: 1 } };
+  const page = 'https://api.github.com/search/code?q=filename:SKILL.md+user:empty-org&per_page=100&page=1';
+  // What code search answers for requests close together, once, then the result.
+  const asked: string[] = [];
+  const answers = [
+    { status: 429, body: { message: 'try again in 0.01s' } },
+    { status: 200, body: { total_count: 0, items: [] } },
+  ];
+  const busy = replay({ 'https://api.github.com/users/empty-org': owner }, async (url) => {
+    asked.push(url);
+    const { status, body } = answers.shift()!;
+    return new Response(JSON.stringify(body), { status });
+  });
+  const scanned = await scanOwner('github.com/empty-org', { fetch: busy, token: 'test' });
+  assert.deepEqual(scanned.repositories, []);
+  assert.deepEqual(asked, [page, page]);
+
+  const limited = replay({
+    'https://api.github.com/users/empty-org': owner,
+    [page]: { status: 429, body: { message: 'try again in 60s' } },
+  });
+  await assert.rejects(scanOwner('github.com/empty-org', { fetch: limited, token: 'test' }), {
+    message: 'GitHub rate limit reached; try again in a minute',
+  });
+});

@@ -18,6 +18,7 @@ Skill: id = `repo:path`, name, description, commit, the SKILL.md content
 - The link pins the *scanned commit*
 - Malformed front matter → a *warning*, the scan goes on
 - Unreachable repository → a clear message, exit code 1
+- GitHub asks to *wait a few seconds* (code search does, for requests close together) → the scan waits, up to 10 s, and goes on; a longer rate limit → a clear message
 
 ## Organization
 - **One code search** over the whole owner, at most ten pages; *under 5 s* for JetBrains. It needs a **token**: GitHub's code search does

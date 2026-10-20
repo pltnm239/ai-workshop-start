@@ -164,14 +164,21 @@ function client({ fetch, token }: GitHubOptions) {
     }
   }
 
-  async function request(url: string, notFound: string): Promise<unknown> {
+  async function request(url: string, notFound: string, retries = MAX_RETRIES): Promise<unknown> {
     const response = await get(url, { headers });
     if (response.ok) return response.json();
     const body: unknown = await response.json().catch(() => undefined);
     const message = (body as { message?: unknown } | undefined)?.message;
     const text = typeof message === 'string' ? message : '';
     if (response.status === 404) throw new AtlasError(notFound);
-    if ((response.status === 403 || response.status === 429) && /rate limit/i.test(text)) {
+    const limited = response.status === 429 || (response.status === 403 && /rate limit/i.test(text));
+    // Code search asks for a pause of a few seconds when requests come close together: wait it out.
+    const wait = limited ? retryAfter(response, text) : undefined;
+    if (wait !== undefined && wait <= MAX_WAIT && retries > 0) {
+      await new Promise((resolve) => setTimeout(resolve, wait * 1000));
+      return request(url, notFound, retries - 1);
+    }
+    if (limited) {
       throw new AtlasError(`GitHub rate limit reached; ${token ? 'try again in a minute' : 'set GITHUB_TOKEN'}`);
     }
     if (response.status === 401) throw new AtlasError('GitHub rejected the token in GITHUB_TOKEN');
@@ -192,6 +199,18 @@ function client({ fetch, token }: GitHubOptions) {
       return new Uint8Array(await response.arrayBuffer());
     },
   };
+}
+
+/** How many times a request is repeated after GitHub asks to wait, and the longest wait, in seconds. */
+const MAX_RETRIES = 3;
+const MAX_WAIT = 10;
+
+/** The pause GitHub asks for: the Retry-After header, or `try again in 2.7s` in the message. */
+function retryAfter(response: Response, text: string): number | undefined {
+  const header = Number(response.headers.get('retry-after') ?? NaN);
+  if (Number.isFinite(header)) return header;
+  const match = /try again in ([\d.]+)\s*s/i.exec(text);
+  return match ? Number(match[1]) : undefined;
 }
 
 function encodePath(path: string): string {
