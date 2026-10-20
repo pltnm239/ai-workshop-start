@@ -278,7 +278,7 @@ test('filter: smooth on the page; skills fold away and come back, highlights fad
   assert.match(page, /ul#skills li\.item \{[^}]*transition: grid-template-rows [^}]*opacity[^}]*transform/);
   assert.match(page, /ul#skills li\.item\.out \{ grid-template-rows: 0fr; opacity: 0;/);
   assert.match(page, /ul#skills mark\.fresh \{ animation: mark-in/);
-    // As specific as the rules they turn off: \`mark.fresh\` beats a bare \`mark\`.
+  // As specific as the rules they turn off: `mark.fresh` beats a bare `mark`.
   assert.match(page, /@media \(prefers-reduced-motion: reduce\) \{\s*ul#skills li\.item, ul#skills mark, ul#skills mark\.fresh, \.list-empty \{ transition: none; animation: none; \}/);
   assert.match(page, /'No skills match'/);
   assert.match(page, /`\$\{count\} of \$\{result\.skills\.length\}`/);

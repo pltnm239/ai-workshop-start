@@ -16,6 +16,7 @@ Same input and core as the CLI; *nothing is stored*. Listens on `127.0.0.1` only
 - The description line: the first sentence; when the first match is past what the list shows, the text around it, with `…`
 - **Smooth**: a skill left out folds away and the others slide up; one that comes back unfolds; new highlights fade in. None with reduced motion
 - The count, `<shown> of <all>`; Escape clears; Enter or ↓ selects the first match
+- Back to a skill the filter leaves out clears the filter; selecting the skill already selected adds no step to the history
 ## API
 `GET /api/scan?repo=<input>` → `{ repository, skills, warnings }`; each skill has `link`, `root`, `properties`, `content`, `html`
 - Unreachable repository, or no input → 400, `{ error }` with the CLI's message
