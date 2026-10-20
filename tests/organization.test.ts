@@ -117,6 +117,16 @@ test('GitHub asks to wait a few seconds → the scan waits and goes on; a longer
     [page]: { status: 429, body: { message: 'try again in 60s' } },
   });
   await assert.rejects(scanOwner('github.com/empty-org', { fetch: limited, token: 'test' }), {
-    message: 'GitHub rate limit reached; try again in a minute',
+    message: 'GitHub rate limit reached; try again in 60 s',
   });
+
+  // No requests left for this minute: the wait is until the limit resets.
+  const reset = String(Math.floor(Date.now() / 1000) + 40);
+  const spent = replay({ 'https://api.github.com/users/empty-org': owner }, async () =>
+    new Response(JSON.stringify({ message: 'API rate limit exceeded for installation.' }), {
+      status: 403,
+      headers: { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': reset },
+    }),
+  );
+  await assert.rejects(scanOwner('github.com/empty-org', { fetch: spent, token: 'test' }), { message: /^GitHub rate limit reached; try again in (39|40) s$/ });
 });

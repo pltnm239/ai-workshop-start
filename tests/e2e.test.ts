@@ -21,9 +21,17 @@ for (const [repository, commit] of Object.entries(COMMITS)) {
 }
 
 test('github.com/JetBrains in under 5 s: every repository with project skills, MPS, intellij-community and kotlin among them', () => {
-  const started = performance.now();
-  const scanned = spawnSync(process.execPath, [CLI, 'scan', 'github.com/JetBrains'], { encoding: 'utf8' });
-  const elapsed = performance.now() - started;
+  const scan = () => {
+    const started = performance.now();
+    return { ...spawnSync(process.execPath, [CLI, 'scan', 'github.com/JetBrains'], { encoding: 'utf8' }), elapsed: performance.now() - started };
+  };
+  let { elapsed, ...scanned } = scan();
+  // Code search allows 10 requests a minute; CI's push and pull request runs share them.
+  const wait = /^GitHub rate limit reached; try again in (\d+) s$/m.exec(scanned.stderr);
+  if (wait && Number(wait[1]) <= 90) {
+    spawnSync('sleep', [String(Number(wait[1]) + 1)]);
+    ({ elapsed, ...scanned } = scan());
+  }
   assert.equal(scanned.status, 0, scanned.stderr);
   assert.ok(elapsed < 5000, `${Math.round(elapsed)} ms`);
   const [header, ...lines] = scanned.stdout.trimEnd().split('\n');

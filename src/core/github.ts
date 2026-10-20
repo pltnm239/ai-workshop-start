@@ -179,7 +179,8 @@ function client({ fetch, token }: GitHubOptions) {
       return request(url, notFound, retries - 1);
     }
     if (limited) {
-      throw new AtlasError(`GitHub rate limit reached; ${token ? 'try again in a minute' : 'set GITHUB_TOKEN'}`);
+      const later = wait === undefined ? 'a minute' : `${Math.ceil(wait)} s`;
+      throw new AtlasError(`GitHub rate limit reached; ${token ? `try again in ${later}` : 'set GITHUB_TOKEN'}`);
     }
     if (response.status === 401) throw new AtlasError('GitHub rejected the token in GITHUB_TOKEN');
     throw new AtlasError(`GitHub answered ${response.status} for ${url}${text && `: ${text}`}`);
@@ -205,12 +206,18 @@ function client({ fetch, token }: GitHubOptions) {
 const MAX_RETRIES = 3;
 const MAX_WAIT = 10;
 
-/** The pause GitHub asks for: the Retry-After header, or `try again in 2.7s` in the message. */
+/**
+ * The pause GitHub asks for, in seconds: the Retry-After header, `try again in 2.7s` in the message,
+ * or, with no requests left, the time until the limit resets.
+ */
 function retryAfter(response: Response, text: string): number | undefined {
   const header = Number(response.headers.get('retry-after') ?? NaN);
   if (Number.isFinite(header)) return header;
   const match = /try again in ([\d.]+)\s*s/i.exec(text);
-  return match ? Number(match[1]) : undefined;
+  if (match) return Number(match[1]);
+  const reset = Number(response.headers.get('x-ratelimit-reset') ?? NaN);
+  if (response.headers.get('x-ratelimit-remaining') === '0' && Number.isFinite(reset)) return Math.max(0, reset - Date.now() / 1000);
+  return undefined;
 }
 
 function encodePath(path: string): string {
