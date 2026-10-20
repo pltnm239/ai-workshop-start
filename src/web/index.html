@@ -372,6 +372,7 @@
 
   /** Folds away the skills the filter leaves out and highlights the matches in the others. */
   function renderList() {
+    if (!result) return;
     const query = filter.value;
     let count = 0;
     for (const skill of result.skills) {
@@ -473,7 +474,8 @@
     if (event.key === 'Escape' && filter.value) { event.preventDefault(); filter.value = ''; renderList(); }
     if (event.key === 'Enter' || event.key === 'ArrowDown') {
       const first = shownOptions()[0];
-      if (first) { event.preventDefault(); first.click(); first.focus(); }
+      // Stopped here: on the document, the same ↓ would move on from the first match to the next.
+      if (first) { event.preventDefault(); event.stopPropagation(); first.click(); first.focus(); }
     }
   });
 
@@ -490,7 +492,11 @@
   function fromLocation() {
     const repo = new URL(location.href).searchParams.get('repo');
     const name = decodeURIComponent(location.hash.slice(1));
-    if (!repo) { input.value = ''; result = null; list.replaceChildren(); $('#repo-card').hidden = true; return welcome(); }
+    if (!repo) {
+      input.value = ''; result = null; list.replaceChildren();
+      for (const part of ['#repo-card', '#filter-box', '#warnings', '#error']) $(part).hidden = true;
+      return welcome();
+    }
     if (result && repo === input.value.trim()) {
       const skill = result.skills.find((s) => s.name === name);
       if (skill) {

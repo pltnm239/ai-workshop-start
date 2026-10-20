@@ -44,9 +44,9 @@ function descriptionLine(description, all) {
   const first = find(description, all)[0];
   if (!first || first[0] < Math.min(sentence.length, VISIBLE)) return segments(sentence, all);
   let start = Math.max(0, first[0] - BEFORE);
-  // Start at a word, unless the match itself is the word.
+  // Start at a word, unless that leaves nothing before the match: inside a long URL, say.
   const space = description.indexOf(' ', start);
-  if (start > 0 && space !== -1 && space < first[0]) start = space + 1;
+  if (start > 0 && space !== -1 && space < first[0] - 1) start = space + 1;
   let end = Math.min(description.length, start + EXCERPT);
   const last = description.lastIndexOf(' ', end);
   if (end < description.length && last > first[1]) end = last;
