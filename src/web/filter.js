@@ -46,7 +46,7 @@ function descriptionLine(description, all) {
   let start = Math.max(0, first[0] - BEFORE);
   // Start at a word, unless that leaves nothing before the match: inside a long URL, say.
   const space = description.indexOf(' ', start);
-  if (start > 0 && space !== -1 && space < first[0] - 1) start = space + 1;
+  if (start > 0 && description[start - 1] !== ' ' && space !== -1 && space < first[0] - 1) start = space + 1;
   let end = Math.min(description.length, start + EXCERPT);
   const last = description.lastIndexOf(' ', end);
   if (end < description.length && last > first[1]) end = last;

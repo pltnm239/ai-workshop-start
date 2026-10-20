@@ -3,7 +3,10 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import type { AddressInfo } from 'node:net';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
@@ -247,7 +250,7 @@ test('filter: a query that matches nothing leaves no skill; regular expression c
 
 test('filter: a match only after the first sentence → the line around it, highlighted', async () => {
   const { show } = await pageFilter();
-  assert.equal(marked(show(SKILLS[0], 'formatter')), 'code-style — …to 120 characters. Run the [formatter] before committing.');
+  assert.equal(marked(show(SKILLS[0], 'formatter')), 'code-style — …up to 120 characters. Run the [formatter] before committing.');
   const long = {
     name: 'long',
     description: `${'A sentence with many words that goes on '.repeat(3)}and then names the formatter at last, ${'and goes on after it for quite a while '.repeat(4)}end.`,
@@ -259,6 +262,9 @@ test('filter: a match only after the first sentence → the line around it, high
   assert.ok(line.indexOf('[formatter]') <= 32, line);
   const url = { name: 'lint', description: 'Lints the code. Before a commit it runs https://github.com/acme/tools/blob/main/format.sh formatter on staged files.' };
   assert.equal(marked(show(url, 'formatter')), 'lint — …cme/tools/blob/main/format.sh [formatter] on staged files.');
+  // 30 characters before the match is already the start of a word: the excerpt starts there.
+  const words = { name: 'w', description: `Short. ${'aaaa bbbb cccc dddd eeee ffff gggg hhhh iiii jjjj kkkk llll mmmm nnnn oooo pppp qqqq rrrr ssss tttt'} target end.` };
+  assert.equal(marked(show(words, 'target')), 'w — …oooo pppp qqqq rrrr ssss tttt [target] end.');
 });
 
 test('filter: the description line is still the first sentence when it holds an early match', async () => {
@@ -272,7 +278,8 @@ test('filter: smooth on the page; skills fold away and come back, highlights fad
   assert.match(page, /ul#skills li\.item \{[^}]*transition: grid-template-rows [^}]*opacity[^}]*transform/);
   assert.match(page, /ul#skills li\.item\.out \{ grid-template-rows: 0fr; opacity: 0;/);
   assert.match(page, /ul#skills mark\.fresh \{ animation: mark-in/);
-  assert.match(page, /@media \(prefers-reduced-motion: reduce\) \{\s*ul#skills li\.item, ul#skills mark, \.list-empty \{ transition: none; animation: none; \}/);
+    // As specific as the rules they turn off: \`mark.fresh\` beats a bare \`mark\`.
+  assert.match(page, /@media \(prefers-reduced-motion: reduce\) \{\s*ul#skills li\.item, ul#skills mark, ul#skills mark\.fresh, \.list-empty \{ transition: none; animation: none; \}/);
   assert.match(page, /'No skills match'/);
   assert.match(page, /`\$\{count\} of \$\{result\.skills\.length\}`/);
 });
@@ -329,6 +336,16 @@ async function openPage(path: string) {
 }
 
 test('filter on the page: shown when there is more than one skill', async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'skill-atlas-two-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  for (const name of ['first', 'second']) {
+    mkdirSync(join(directory, '.claude/skills', name), { recursive: true });
+    writeFileSync(join(directory, '.claude/skills', name, 'SKILL.md'), `---\nname: ${name}\ndescription: The ${name} one.\n---\n`);
+  }
+  const two = await openPage(`/?repo=${encodeURIComponent(directory)}`);
+  t.after(two.close);
+  assert.equal(two.document.querySelectorAll('#skills li.item').length, 2);
+  assert.equal(two.$('#filter-box').hidden, false);
   const three = await openPage(`/?repo=${encodeURIComponent(FIXTURE)}`);
   t.after(three.close);
   assert.equal(three.$('#filter-box').hidden, false);
@@ -384,11 +401,16 @@ test('filter on the page: Enter or ↓ selects the first match; Escape clears', 
   for (const key of ['Enter', 'ArrowDown']) {
     const page = await openPage(`/?repo=${encodeURIComponent(FIXTURE)}`);
     t.after(page.close);
-    page.type('commit');
-    page.key(key);
     assert.equal(page.selected(), 'code-style', key);
-    assert.equal(page.window.location.hash, '#code-style', key);
-    assert.equal(page.$('h1').textContent, 'code-style', key);
+    page.type('messages');
+    page.key(key);
+    assert.equal(page.selected(), 'commits', key);
+    assert.equal(page.window.location.hash, '#commits', key);
+    assert.equal(page.$('h1').textContent, 'commits', key);
+    // The same match again is not another step back.
+    const steps = page.window.history.length;
+    page.key(key, page.$('#filter'));
+    assert.equal(page.window.history.length, steps, key);
   }
   const page = await openPage(`/?repo=${encodeURIComponent(FIXTURE)}`);
   t.after(page.close);
@@ -409,6 +431,22 @@ test('filter on the page: ↑/↓ in the list skip the skills it leaves out', as
   assert.equal(page.selected(), 'commits');
   page.key('ArrowDown', page.document.activeElement!);
   assert.equal(page.selected(), 'commits');
+});
+
+test('filter on the page: back to a skill the filter leaves out → the filter cleared, the skill in the list', async (t) => {
+  const page = await openPage(`/?repo=${encodeURIComponent(FIXTURE)}`);
+  t.after(page.close);
+  page.type('messages');
+  page.key('Enter');
+  assert.equal(page.selected(), 'commits');
+  page.type('kotlin');
+  page.window.history.replaceState(null, '', `/?repo=${encodeURIComponent(FIXTURE)}#code-style`);
+  page.type('messages');
+  page.window.dispatchEvent(new page.window.PopStateEvent('popstate'));
+  assert.equal(page.$('h1').textContent, 'code-style');
+  assert.equal((page.$('#filter') as HTMLInputElement).value, '');
+  assert.equal(page.selected(), 'code-style');
+  assert.equal(page.shown().length, 3);
 });
 
 test('filter on the page: back to the start page → no filter, and nothing breaks', async (t) => {
