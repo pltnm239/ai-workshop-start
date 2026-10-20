@@ -56,6 +56,14 @@ test('an organization that does not exist → a clear message, exit code 1', asy
   assert.equal(scanned.stderr, 'Organization not found: https://github.com/nobody');
 });
 
+test('a name GitHub cannot have, such as `..` → not found, and GitHub is not asked', async () => {
+  for (const name of ['..', '.', '.hidden', '-dash']) {
+    const scanned = await atlas(['scan', `github.com/${name}`]);
+    assert.equal(scanned.code, 1, name);
+    assert.equal(scanned.stderr, `Organization not found: https://github.com/${name}`);
+  }
+});
+
 test('an organization without GITHUB_TOKEN → a message that asks for it, exit code 1', async () => {
   const github = replay({
     'https://api.github.com/users/JetBrains': { status: 200, body: { login: 'JetBrains', html_url: 'https://github.com/JetBrains', public_repos: 871 } },

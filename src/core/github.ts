@@ -73,6 +73,8 @@ type SearchResult = {
 async function owner(github: Client, input: string): Promise<Owner> {
   const name = parseGitHubOwner(input);
   if (!name) throw new AtlasError(`Not a GitHub organization URL: ${input}`);
+  // `..` would be the API root: a name GitHub cannot have is not asked for.
+  if (!/^[a-z\d][\w-]*$/i.test(name)) throw new AtlasError(`Organization not found: https://github.com/${name}`);
   const info = await github.json<{ login: string; html_url: string; public_repos: number }>(
     `${API}/users/${encodeURIComponent(name)}`,
     `Organization not found: https://github.com/${name}`,
