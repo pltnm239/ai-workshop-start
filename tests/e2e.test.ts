@@ -26,15 +26,19 @@ test('github.com/JetBrains in under 5 s: every repository with project skills, M
     return { ...spawnSync(process.execPath, [CLI, 'scan', 'github.com/JetBrains'], { encoding: 'utf8' }), elapsed: performance.now() - started };
   };
   let { elapsed, ...scanned } = scan();
-  // Code search allows 10 requests a minute; CI's push and pull request runs share them.
-  const wait = /^GitHub rate limit reached; try again in (\d+) s$/m.exec(scanned.stderr);
-  if (wait && Number(wait[1]) <= 90) {
-    spawnSync('sleep', [String(Number(wait[1]) + 1)]);
+  // Code search allows 10 requests a minute, and CI's push and pull request runs share them: wait as
+  // GitHub asks, up to WAIT_BUDGET in all. A longer hold on CI's own token is GitHub's call: a skip.
+  const WAIT_BUDGET = 240;
+  let waited = 0;
+  for (let wait = rateLimitWait(scanned.stderr); wait !== undefined; wait = rateLimitWait(scanned.stderr)) {
+    if (waited + wait > WAIT_BUDGET) {
+      if (process.env.CI) return t.skip(`${scanned.stderr.trim()}, after ${waited} s of waiting`);
+      break;
+    }
+    spawnSync('sleep', [String(wait + 1)]);
+    waited += wait + 1;
     ({ elapsed, ...scanned } = scan());
   }
-  // CI's own token can be held off code search for many minutes: GitHub's choice, not a failure of the scan.
-  const limited = /^GitHub rate limit reached; .*$/m.exec(scanned.stderr);
-  if (limited && process.env.CI) return t.skip(limited[0]);
   assert.equal(scanned.status, 0, scanned.stderr);
   assert.ok(elapsed < 5000, `${Math.round(elapsed)} ms`);
   const [header, ...lines] = scanned.stdout.trimEnd().split('\n');
@@ -47,3 +51,9 @@ test('github.com/JetBrains in under 5 s: every repository with project skills, M
   const counts = lines.filter((_, index) => index % 2 === 0).map((line) => Number(/ · (\d+) skills?$/.exec(line)![1]));
   assert.deepEqual(counts, [...counts].sort((a, b) => b - a));
 });
+
+/** How long the CLI's rate limit message says to wait, in seconds; undefined for any other output. */
+function rateLimitWait(stderr: string): number | undefined {
+  const match = /^GitHub rate limit reached; try again in (?:(\d+) s|a minute)$/m.exec(stderr);
+  return match ? Number(match[1] ?? 60) : undefined;
+}
