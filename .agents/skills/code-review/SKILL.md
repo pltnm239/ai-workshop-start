@@ -21,8 +21,13 @@ What is wrong, and why it matters.
 Repro: the exact command or input, what happens, what the spec expects.
 ```
 
+## Publish
+Post the review to the pull request, always with `--repo <owner>/<repo>` (a fork's `gh` defaults to the original repository):
+- The summary: `gh pr review <n> --repo <owner>/<repo> --comment --body "<summary>"`
+- Each inline comment, on its `file:line`: `gh api repos/<owner>/<repo>/pulls/<n>/comments -f body="<comment with its Repro>" -f commit_id=<head sha> -f path=<file> -F line=<line> -f side=RIGHT`
+
 ## Rules
 - A comment without **where** (`file:line`) or **how to reproduce** (a command or an input that shows it) is not a comment: reproduce it, or drop it.
 - Only real problems: wrong behavior, a spec case without a test, a broken contract. No style notes, no praise to fill the space.
 - Say what you ran. If something was not run, say so.
-- Do not post comments to GitHub, edit the PR description or push, unless asked.
+- Do not edit the PR description or push code.
