@@ -7,8 +7,8 @@ A **GitHub repository** URL (`/tree/<commit>` pins a commit), or a local directo
 Every **project skill**: **name**, **description**, **link**
 
 ## Architecture
-Core: fetch → find → parse. CLI: a *thin client*.
-Skill: id = `repo:path`, name, description, commit
+Core: fetch → find → parse. CLI and [web view](web.md): *thin clients*.
+Skill: id = `repo:path`, name, description, commit, the SKILL.md content
 
 ## Details
 - **GitHub API**, no clone; *under 5 s* for intellij-community
