@@ -7,7 +7,7 @@ Integration tests for every case in the spec.
 - All tests pass locally
 - The CI build is green
 - A PR is open in this repository, not in the original one
-- A demo video is attached to the PR, when the change is visible in the web view
+- Attach a demo video to the PR, when applicable (see the `demo-video` skill)
 
 ## Commands
 - `npm ci`: first, in a fresh checkout
