@@ -343,7 +343,9 @@ async function openPage(path: string) {
       window.HTMLElement.prototype.scrollIntoView = () => {};
       // jsdom has <dialog> but not its methods: open and close it as a browser would, minus the backdrop.
       window.HTMLDialogElement.prototype.showModal = function () { this.open = true; };
-      window.HTMLDialogElement.prototype.close = function () { this.open = false; };
+      window.HTMLDialogElement.prototype.close = function () {
+        if (this.open) { this.open = false; this.dispatchEvent(new window.Event('close')); }
+      };
       window.addEventListener('error', (event) => errors.push(event.error));
     },
   });
@@ -649,12 +651,24 @@ test('help on the page: the button opens it, ✕ or a click beside it closes it;
   assert.equal(page.selected(), 'code-style');
   page.$('#help-close').click();
   assert.equal(dialog.open, false);
+  // The focus goes back to the help button, even when the click that opened it did not focus it.
+  assert.equal(page.document.activeElement, page.$('#help'));
+  page.$('#repo').focus();
   open();
-  // Inside it: stays open. On the dialog itself, which is only its backdrop: closes.
-  (dialog.querySelector('.help p') as HTMLElement).click();
-  assert.equal(dialog.open, true);
-  dialog.click();
-  assert.equal(dialog.open, false);
+  // jsdom lays nothing out: the dialog's box is the point 0, 0, and anywhere else is beside it.
+  const mouse = (type: string, target: Element, x: number) =>
+    target.dispatchEvent(new page.window.MouseEvent(type, { bubbles: true, clientX: x, clientY: x }));
+  const press = (down: Element, up: Element, x = 100) => { mouse('mousedown', down, x); mouse('click', up, x); };
+  const text = dialog.querySelector('.help p')!;
+  press(text, text);
+  assert.equal(dialog.open, true, 'a click inside');
+  press(text, dialog);
+  assert.equal(dialog.open, true, 'a drag from its text out beside it');
+  press(dialog, dialog, 0);
+  assert.equal(dialog.open, true, 'its border or scrollbar');
+  press(dialog, dialog);
+  assert.equal(dialog.open, false, 'a click beside it');
+  assert.equal(page.document.activeElement, page.$('#help'));
   page.key('ArrowDown', page.document.body);
   assert.equal(page.selected(), 'commits');
   page.key('/', page.document.body);

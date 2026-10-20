@@ -35,3 +35,27 @@ test('the help over a scan: ✕ and a click beside it close it', async ({ page }
   await expect(dialog).toBeHidden();
   await expect(button).toBeFocused();
 });
+
+test('the help: a drag from its text out beside it keeps it open', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Help' }).click();
+  const dialog = page.getByRole('dialog', { name: 'How to use Skill Atlas' });
+  const text = (await dialog.locator('.help p').first().boundingBox())!;
+  await page.mouse.move(text.x + 10, text.y + 5);
+  await page.mouse.down();
+  await page.mouse.move(20, 700, { steps: 5 });
+  await page.mouse.up();
+  await expect(dialog).toBeVisible();
+});
+
+test('the help: the focus goes back to its button, even when opening it did not focus the button', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('#repo').focus();
+  // As in Safari: a click that does not move the focus.
+  await page.getByRole('button', { name: 'Help' }).dispatchEvent('click');
+  const dialog = page.getByRole('dialog', { name: 'How to use Skill Atlas' });
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Help' })).toBeFocused();
+});

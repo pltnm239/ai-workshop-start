@@ -642,7 +642,16 @@
   const help = $('#help-dialog');
   $('#help').addEventListener('click', () => help.showModal());
   $('#help-close').addEventListener('click', () => help.close());
-  help.addEventListener('click', (event) => { if (event.target === help) help.close(); });
+  // Beside it is outside its box, from the press to the click: a drag out of its text, or its scrollbar, is not.
+  const beside = (event) => {
+    const box = help.getBoundingClientRect();
+    return event.target === help && (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom);
+  };
+  let pressedBeside = false;
+  help.addEventListener('mousedown', (event) => { pressedBeside = beside(event); });
+  help.addEventListener('click', (event) => { if (pressedBeside && beside(event)) help.close(); pressedBeside = false; });
+  // The browser gives the focus back to what had it, which is not the button when a click does not focus it (Safari).
+  help.addEventListener('close', () => $('#help').focus());
 
   document.addEventListener('keydown', (event) => {
     // The page's keys are for the page, not for the help over it.
