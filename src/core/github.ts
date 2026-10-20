@@ -166,7 +166,7 @@ function client({ fetch, token }: GitHubOptions) {
     }
   }
 
-  async function request(url: string, notFound: string, retries = MAX_RETRIES): Promise<unknown> {
+  async function request(url: string, notFound: string, retries = MAX_RETRIES, waited = 0): Promise<unknown> {
     const response = await get(url, { headers });
     if (response.ok) return response.json();
     const body: unknown = await response.json().catch(() => undefined);
@@ -176,9 +176,9 @@ function client({ fetch, token }: GitHubOptions) {
     const limited = response.status === 429 || (response.status === 403 && /rate limit/i.test(text));
     // Code search asks for a pause of a few seconds when requests come close together: wait it out.
     const wait = limited ? retryAfter(response, text) : undefined;
-    if (wait !== undefined && wait <= MAX_WAIT && retries > 0) {
+    if (wait !== undefined && waited + wait <= MAX_WAIT && retries > 0) {
       await new Promise((resolve) => setTimeout(resolve, wait * 1000));
-      return request(url, notFound, retries - 1);
+      return request(url, notFound, retries - 1, waited + wait);
     }
     if (limited) {
       const later = wait === undefined ? 'a minute' : `${Math.ceil(wait)} s`;
@@ -204,7 +204,7 @@ function client({ fetch, token }: GitHubOptions) {
   };
 }
 
-/** How many times a request is repeated after GitHub asks to wait, and the longest wait, in seconds. */
+/** How many times a request is repeated after GitHub asks to wait, and how long it waits in all, in seconds. */
 const MAX_RETRIES = 3;
 const MAX_WAIT = 10;
 

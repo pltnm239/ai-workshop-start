@@ -130,6 +130,16 @@ test('GitHub asks to wait a few seconds → the scan waits and goes on; a longer
     message: 'GitHub rate limit reached; try again in 60 s',
   });
 
+  // Up to 10 s in all: a second pause that would go past it is not waited.
+  const pauses = [{ message: 'try again in 0.01s' }, { message: 'try again in 10s' }];
+  const twice = replay({ 'https://api.github.com/users/empty-org': owner }, async () => new Response(JSON.stringify(pauses.shift()), { status: 429 }));
+  const started = performance.now();
+  await assert.rejects(scanOwner('github.com/empty-org', { fetch: twice, token: 'test' }), {
+    message: 'GitHub rate limit reached; try again in 10 s',
+  });
+  assert.ok(performance.now() - started < 1000);
+  assert.deepEqual(pauses, []);
+
   // No requests left for this minute: the wait is until the limit resets.
   const reset = String(Math.floor(Date.now() / 1000) + 40);
   const spent = replay({ 'https://api.github.com/users/empty-org': owner }, async () =>
