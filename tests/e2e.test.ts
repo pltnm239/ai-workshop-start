@@ -21,6 +21,9 @@ for (const [repository, commit] of Object.entries(COMMITS)) {
 }
 
 test('github.com/JetBrains in under 5 s: every repository with project skills, MPS, intellij-community and kotlin among them', (t) => {
+  // CI runs every commit twice, for the push and for the pull request, at the same time and with the
+  // same token: the push run scans JetBrains, so the two don't share code search's 10 requests a minute.
+  if (process.env.GITHUB_EVENT_NAME === 'pull_request') return t.skip('scanned by the push run of this commit');
   const scan = () => {
     const started = performance.now();
     return { ...spawnSync(process.execPath, [CLI, 'scan', 'github.com/JetBrains'], { encoding: 'utf8' }), elapsed: performance.now() - started };
