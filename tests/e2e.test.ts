@@ -19,3 +19,20 @@ for (const [repository, commit] of Object.entries(COMMITS)) {
     assert.equal(scanned.stdout, readFileSync(fileURLToPath(new URL(`e2e/${repository}.txt`, import.meta.url)), 'utf8'));
   });
 }
+
+test('github.com/JetBrains in under 5 s: every repository with project skills, MPS, intellij-community and kotlin among them', () => {
+  const started = performance.now();
+  const scanned = spawnSync(process.execPath, [CLI, 'scan', 'github.com/JetBrains'], { encoding: 'utf8' });
+  const elapsed = performance.now() - started;
+  assert.equal(scanned.status, 0, scanned.stderr);
+  assert.ok(elapsed < 5000, `${Math.round(elapsed)} ms`);
+  const [header, ...lines] = scanned.stdout.trimEnd().split('\n');
+  const [, all, withSkills] = /^JetBrains · (\d+) repositories, (\d+) with skills$/.exec(header) ?? assert.fail(header);
+  assert.ok(Number(all) > 500 && Number(withSkills) >= 3, header);
+  assert.equal(lines.length, 2 * Number(withSkills));
+  for (const repository of ['MPS', 'intellij-community', 'kotlin']) {
+    assert.match(scanned.stdout, new RegExp(`^${repository} · \\d+ skills?\\n  https://github\\.com/JetBrains/${repository}$`, 'm'));
+  }
+  const counts = lines.filter((_, index) => index % 2 === 0).map((line) => Number(/ · (\d+) skills?$/.exec(line)![1]));
+  assert.deepEqual(counts, [...counts].sort((a, b) => b - a));
+});

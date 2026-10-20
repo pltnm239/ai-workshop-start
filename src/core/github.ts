@@ -1,5 +1,6 @@
 import { AtlasError } from './errors.ts';
-import { SKILL_ROOTS } from './find.ts';
+import { findSkills, SKILL_ROOTS } from './find.ts';
+import { sortRepositories, type Owner, type OwnerRepository, type OwnerScan } from './model.ts';
 import type { Source } from './scan.ts';
 
 /** The part of `fetch` the core uses, so tests and the browser can pass their own. */
@@ -21,6 +22,62 @@ const RAW = 'https://raw.githubusercontent.com';
 export function parseGitHubUrl(input: string): { owner: string; repo: string; ref?: string } | undefined {
   const match = /^(?:https?:\/\/)?(?:www\.)?github\.com\/([\w.-]+)\/([\w.-]+?)(?:\.git)?(?:\/tree\/([^?#]+?))?\/?$/i.exec(input.trim());
   return match ? { owner: match[1], repo: match[2], ref: match[3] } : undefined;
+}
+
+/** `https://github.com/owner`, an organization or a user, with or without the scheme or a trailing slash. */
+export function parseGitHubOwner(input: string): string | undefined {
+  return /^(?:https?:\/\/)?(?:www\.)?github\.com\/([\w.-]+)\/?$/i.exec(input.trim())?.[1];
+}
+
+/** The organization or user, and how many public repositories it has: one request, no token needed. */
+export async function openOwner(input: string, options: GitHubOptions): Promise<Owner> {
+  return owner(client(options), input);
+}
+
+/**
+ * Every repository of the owner that keeps project skills, with how many. One code search over the
+ * whole owner, at most ten pages; the skills of each repository are found as in a repository scan.
+ * GitHub's code search needs a token.
+ */
+export async function scanOwner(input: string, options: GitHubOptions): Promise<OwnerScan> {
+  const github = client(options);
+  const found = await owner(github, input);
+  if (!options.token) throw new AtlasError('Scanning an organization needs GITHUB_TOKEN: GitHub code search requires a token');
+  const byRepository = new Map<string, { repository: Omit<OwnerRepository, 'skills'>; paths: Set<string> }>();
+  const warnings: string[] = [];
+  let total = 0;
+  for (let page = 1; page <= 10; page++) {
+    const result = await github.json<SearchResult>(`${API}/search/code?q=filename:SKILL.md+user:${found.id}&per_page=100&page=${page}`);
+    total = result.total_count;
+    if (result.incomplete_results && warnings.length === 0) warnings.push('GitHub code search timed out; some repositories may be missing');
+    for (const { path, repository } of result.items) {
+      const entry = byRepository.get(repository.full_name) ?? { repository: { id: repository.full_name, name: repository.name, url: repository.html_url }, paths: new Set() };
+      entry.paths.add(path); // pages can repeat a result
+      byRepository.set(repository.full_name, entry);
+    }
+    if (result.items.length < 100 || page * 100 >= result.total_count) break;
+  }
+  if (total > 1000) warnings.push(`GitHub code search returns 1000 of the ${total} SKILL.md files; some repositories may be missing`);
+  const repositories = [...byRepository.values()]
+    .map(({ repository, paths }) => ({ ...repository, skills: findSkills([...paths]).length }))
+    .filter((repository) => repository.skills > 0);
+  return { owner: found, repositories: sortRepositories(repositories), warnings };
+}
+
+type SearchResult = {
+  total_count: number;
+  incomplete_results?: boolean;
+  items: { path: string; repository: { full_name: string; name: string; html_url: string } }[];
+};
+
+async function owner(github: Client, input: string): Promise<Owner> {
+  const name = parseGitHubOwner(input);
+  if (!name) throw new AtlasError(`Not a GitHub organization URL: ${input}`);
+  const info = await github.json<{ login: string; html_url: string; public_repos: number }>(
+    `${API}/users/${encodeURIComponent(name)}`,
+    `Organization not found: https://github.com/${name}`,
+  );
+  return { id: info.login, url: info.html_url, repositories: info.public_repos };
 }
 
 /** Resolves the default branch to a commit and lists the files that may be skills. */

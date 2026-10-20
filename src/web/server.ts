@@ -4,7 +4,8 @@ import { readFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import { AtlasError } from '../core/errors.ts';
 import { SKILL_ROOTS } from '../core/find.ts';
-import { skillLink } from '../core/model.ts';
+import { parseGitHubOwner } from '../core/github.ts';
+import { skillLink, type Owner, type OwnerScan } from '../core/model.ts';
 import { parseSkill } from '../core/parse.ts';
 import { scan, type Source } from '../core/scan.ts';
 import { renderMarkdown } from './markdown.ts';
@@ -35,8 +36,17 @@ export type WebScan = {
   warnings: string[];
 };
 
-/** `GET /`: the page; `GET /api/scan?repo=<GitHub URL | directory>`: a WebScan, or `{ error }`. */
-export function createWebServer(open: (input: string) => Promise<Source>): Server {
+/** A GitHub organization or user: its repository count, and the scan of all its repositories. */
+export type Owners = {
+  open(input: string): Promise<Owner>;
+  scan(input: string): Promise<OwnerScan>;
+};
+
+/**
+ * `GET /`: the page; `GET /api/scan?repo=<GitHub URL | directory>`: a WebScan, or for an organization
+ * URL an OwnerScan; `GET /api/owner?repo=<organization URL>`: its Owner. Errors are `{ error }`.
+ */
+export function createWebServer(open: (input: string) => Promise<Source>, owners: Owners): Server {
   return createServer(async (request, response) => {
     const url = new URL(request.url ?? '/', 'http://localhost');
     const send = (status: number, type: string, body: string | Buffer) => {
@@ -47,12 +57,14 @@ export function createWebServer(open: (input: string) => Promise<Source>): Serve
 
     if (request.method !== 'GET') return json(405, { error: 'Only GET is supported' });
     if (url.pathname === '/') return send(200, 'text/html; charset=utf-8', PAGE);
-    if (url.pathname !== '/api/scan') return json(404, { error: `Not found: ${url.pathname}` });
+    if (url.pathname !== '/api/scan' && url.pathname !== '/api/owner') return json(404, { error: `Not found: ${url.pathname}` });
 
     const input = url.searchParams.get('repo')?.trim();
     if (!input) return json(400, { error: 'Enter a GitHub repository URL or a directory' });
     try {
-      json(200, await scanForWeb(await open(input)));
+      if (url.pathname === '/api/owner') json(200, await owners.open(input));
+      else if (parseGitHubOwner(input)) json(200, await owners.scan(input));
+      else json(200, await scanForWeb(await open(input)));
     } catch (error) {
       if (error instanceof AtlasError) json(400, { error: error.message });
       else json(500, { error: `Unexpected error: ${error instanceof Error ? error.message : String(error)}` });

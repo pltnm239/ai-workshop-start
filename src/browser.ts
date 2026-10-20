@@ -1,7 +1,7 @@
 // The browser entry: the same commands, printed into the page, over live GitHub without a
 // token. No Node APIs here.
 import { run } from './commands.ts';
-import { openGitHub, type Fetch } from './core/github.ts';
+import { openGitHub, scanOwner, type Fetch } from './core/github.ts';
 
 export type BrowserOptions = {
   /** Live GitHub; the page's own fetch by default. */
@@ -11,6 +11,8 @@ export type BrowserOptions = {
 export function createBrowserBackend(options: BrowserOptions = {}) {
   const live = options.fetch ?? ((url, init) => fetch(url, init));
   const open = (input: string) => openGitHub(input, { fetch: live });
+  // No token here: an organization gets the CLI's message about GITHUB_TOKEN.
+  const owner = (input: string) => scanOwner(input, { fetch: live });
 
   return {
     /** Runs a typed command line, such as `skill-atlas scan <URL>`, and returns what it printed. */
@@ -18,7 +20,7 @@ export function createBrowserBackend(options: BrowserOptions = {}) {
       const output: string[] = [];
       const write = (text: string) => output.push(text);
       try {
-        await run(words(commandLine), { open, print: write, error: write });
+        await run(words(commandLine), { open, scanOwner: owner, print: write, error: write });
       } catch (error) {
         write(`Unexpected error: ${error instanceof Error ? error.message : String(error)}`);
       }

@@ -1,12 +1,15 @@
 // The skill-atlas commands. The same code serves the Node CLI and the browser
 // terminal: everything that differs between them comes in through the context.
 import { AtlasError } from './core/errors.ts';
-import { skillLink, type Repository, type Skill } from './core/model.ts';
+import { parseGitHubOwner } from './core/github.ts';
+import { skillLink, type OwnerScan, type Repository, type Skill } from './core/model.ts';
 import { scan, type Source } from './core/scan.ts';
 
 export type Context = {
   /** Opens what the user asked to scan. */
   open(input: string): Promise<Source>;
+  /** Scans every repository of a GitHub organization or user. */
+  scanOwner(input: string): Promise<OwnerScan>;
   print(text: string): void;
   /** Errors and warnings. */
   error(text: string): void;
@@ -17,6 +20,7 @@ export type Context = {
 const usage = `Usage: skill-atlas <command>
 
   scan <GitHub URL | directory>   find every SKILL.md in a repository and print it
+  scan <GitHub organization URL>  count the skills in each of its repositories
   serve [--port <port>]           open the local web view, on port 4317 by default
   help                            show this help`;
 
@@ -38,6 +42,7 @@ export async function run(args: string[], context: Context): Promise<number> {
 
 async function scanCommand(args: string[], context: Context) {
   if (args.length !== 1) throw new AtlasError('Usage: skill-atlas scan <GitHub URL | directory>');
+  if (parseGitHubOwner(args[0])) return printOwner(await context.scanOwner(args[0]), context);
   const result = await scan(await context.open(args[0]));
   printRepository(result.repository, result.skills, context);
   for (const warning of result.warnings) context.error(`warning: ${warning}`);
@@ -60,6 +65,17 @@ function printRepository(repository: Repository, skills: Skill[], { print }: Con
     print(`  ${skillLink(repository, skill)}`);
     if (skill.copies.length > 0) print(`  also in ${skill.copies.join(', ')}`);
   }
+}
+
+/** `<owner> · N repositories, M with skills`, then each of them with its skill count and link. */
+function printOwner({ owner, repositories, warnings }: OwnerScan, { print, error }: Context) {
+  const all = `${owner.repositories} ${owner.repositories === 1 ? 'repository' : 'repositories'}`;
+  print(`${owner.id} · ${all}, ${repositories.length || 'none'} with skills`);
+  for (const repository of repositories) {
+    print(`${repository.name} · ${repository.skills} ${repository.skills === 1 ? 'skill' : 'skills'}`);
+    print(`  ${repository.url}`);
+  }
+  for (const warning of warnings) error(`warning: ${warning}`);
 }
 
 function firstSentence(text: string): string {

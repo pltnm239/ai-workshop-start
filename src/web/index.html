@@ -82,6 +82,7 @@
   .field:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(111, 140, 255, 0.18); }
   .field svg { flex: none; color: var(--muted); }
   .field input { flex: 1; min-width: 0; background: none; border: 0; outline: 0; font-family: var(--mono); font-size: 13px; }
+  .field .chip.count { flex: none; }
   .field input::placeholder { color: var(--muted); font-family: var(--sans); font-size: 14px; }
   kbd {
     font: 11px var(--mono); color: var(--muted); border: 1px solid var(--border-strong);
@@ -193,6 +194,17 @@
   .examples { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 22px; }
   .examples button { cursor: pointer; }
   .examples button:hover { border-color: var(--accent); color: var(--text); }
+  /* An organization: its repositories with skills */
+  .owner h2 { margin: 0 0 14px; font-size: 22px; letter-spacing: -0.02em; }
+  .owner ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .owner li button {
+    width: 100%; text-align: left; cursor: pointer; display: grid; gap: 2px; padding: 10px 14px;
+    border-radius: 10px; border: 1px solid var(--border); background: var(--bg-raised);
+  }
+  .owner li button:hover { background: var(--bg-hover); border-color: var(--border-strong); }
+  .owner .repository-name { font: 600 14px var(--mono); }
+  .owner .repository-skills { color: var(--muted); font-size: 12.5px; }
+  .owner .more { margin-top: 10px; }
   .list-empty { color: var(--muted); padding: 24px 16px; text-align: center; font-size: 13px; }
   .skeleton { height: 54px; margin: 6px; border-radius: 10px; background: linear-gradient(90deg, var(--bg-panel), var(--bg-hover), var(--bg-panel)); background-size: 200% 100%; animation: shimmer 1.2s infinite; }
   @keyframes shimmer { to { background-position: -200% 0; } }
@@ -221,7 +233,8 @@
     <label class="field">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
       <input id="repo" name="repo" type="text" spellcheck="false" aria-label="Repository"
-             placeholder="https://github.com/owner/repo, or a local directory">
+             placeholder="https://github.com/owner/repo, an organization, or a local directory">
+      <span id="repo-count" class="chip count" aria-live="polite" hidden></span>
       <kbd>/</kbd>
     </label>
     <button class="button primary" id="go" type="submit">Scan</button>
@@ -248,6 +261,7 @@
       <div class="examples">
         <button class="chip" data-example="https://github.com/JetBrains/kotlin">JetBrains/kotlin</button>
         <button class="chip" data-example="https://github.com/JetBrains/intellij-community">JetBrains/intellij-community</button>
+        <button class="chip" data-example="https://github.com/JetBrains">JetBrains</button>
         <button class="chip" data-example="./fixture">./fixture</button>
       </div>
     </div>
@@ -277,12 +291,43 @@
     return /^.*?[.!?](?=\s|$)/.exec(line)?.[0] ?? line;
   };
   const shortRoot = (root) => root.split('/')[0];
-  const onGitHub = () => result?.repository.url.startsWith('https://github.com/');
+  const onGitHub = () => result?.repository?.url.startsWith('https://github.com/');
+  const plural = (count, one, many) => `${count} ${count === 1 ? one : many}`;
+  // The same input as parseGitHubOwner in src/core/github.ts: an organization or a user.
+  const ownerOf = (text) => /^(?:https?:\/\/)?(?:www\.)?github\.com\/([\w.-]+)\/?$/i.exec(text.trim())?.[1];
+  const owners = new Map(); // owner, in lower case → its repository count, asked once
+  let counting;
+  const SHOWN_REPOSITORIES = 3;
+
+  /** For an organization URL, its repository count at the right of the field, as soon as it is typed. */
+  function showCount() {
+    const chip = $('#repo-count');
+    const typed = ownerOf(input.value);
+    const name = typed?.toLowerCase(); // GitHub names are not case-sensitive
+    if (name !== chip.dataset.owner) chip.hidden = true;
+    chip.dataset.owner = name ?? '';
+    clearTimeout(counting);
+    if (!name) return;
+    // A short pause first: each letter of a name being typed is not worth a GitHub request.
+    counting = setTimeout(() => {
+      if (!owners.has(name)) {
+        const asked = fetch(`/api/owner?repo=${encodeURIComponent(`github.com/${typed}`)}`)
+          .then((response) => (response.ok ? response.json() : null), () => null);
+        owners.set(name, asked);
+        asked.then((owner) => owner || owners.delete(name));
+      }
+      owners.get(name).then((owner) => {
+        if (ownerOf(input.value)?.toLowerCase() !== name) return;
+        chip.hidden = !owner;
+        if (owner) chip.textContent = plural(owner.repositories, 'repo', 'repos');
+      });
+    }, owners.has(name) ? 0 : 250);
+  }
 
   function welcome() {
     view.replaceChildren($('#welcome').content.cloneNode(true));
     view.querySelectorAll('[data-example]').forEach((button) =>
-      button.addEventListener('click', () => { input.value = button.dataset.example; form.requestSubmit(); }));
+      button.addEventListener('click', () => { input.value = button.dataset.example; showCount(); form.requestSubmit(); }));
   }
 
   async function load(repo, skillName) {
@@ -302,6 +347,7 @@
       if (!response.ok) throw new Error(body.error ?? `The server answered ${response.status}`);
       result = body;
       filter.value = '';
+      if (result.owner) return showOwner();
       showRepository();
       const skill = result.skills.find((s) => s.name === skillName) ?? result.skills[0];
       if (skill) select(skill, false);
@@ -332,12 +378,41 @@
         repository.commit && h('span', { class: 'chip', title: repository.commit }, `@ ${repository.commit.slice(0, 7)}`),
         !onGitHub() && h('span', { class: 'chip' }, 'local')),
     );
-    const box = $('#warnings');
-    box.hidden = warnings.length === 0;
-    box.querySelector('summary').textContent = `${warnings.length} ${warnings.length === 1 ? 'warning' : 'warnings'}`;
-    box.querySelector('ul').replaceChildren(...warnings.map((warning) => h('li', {}, warning)));
+    showWarnings(warnings);
     $('#filter-box').hidden = skills.length < 6;
     renderList();
+  }
+
+  function showWarnings(warnings) {
+    const box = $('#warnings');
+    box.hidden = warnings.length === 0;
+    box.querySelector('summary').textContent = plural(warnings.length, 'warning', 'warnings');
+    box.querySelector('ul').replaceChildren(...warnings.map((warning) => h('li', {}, warning)));
+  }
+
+  /** `27 with skills, among them`, the three with the most skills, `+24 more`; a repository opens its scan. */
+  function showOwner(all = false) {
+    const { owner, repositories, warnings } = result;
+    selected = null;
+    const card = $('#repo-card');
+    card.hidden = false;
+    card.replaceChildren(
+      h('div', { class: 'repo-name' }, h('a', { href: owner.url, target: '_blank', rel: 'noopener' }, owner.id)),
+      h('div', { class: 'repo-meta' },
+        h('span', { class: 'chip' }, plural(owner.repositories, 'repo', 'repos')),
+        h('span', { class: 'chip accent' }, `${repositories.length} with skills`)),
+    );
+    showWarnings(warnings);
+    list.replaceChildren();
+    const shown = all ? repositories : repositories.slice(0, SHOWN_REPOSITORIES);
+    const more = repositories.length - shown.length;
+    view.replaceChildren(h('article', { class: 'doc owner' },
+      h('h2', {}, repositories.length ? `${repositories.length} with skills, among them` : 'No repositories with project skills'),
+      h('ol', {}, ...shown.map((repository) => h('li', {},
+        h('button', { type: 'button', 'data-repository': repository.id, onclick: () => { input.value = repository.url; showCount(); form.requestSubmit(); } },
+          h('span', { class: 'repository-name' }, repository.name),
+          h('span', { class: 'repository-skills' }, plural(repository.skills, 'skill', 'skills')))))),
+      more > 0 && h('button', { class: 'button small more', type: 'button', onclick: () => showOwner(true) }, `+${more} more`)));
   }
 
   function renderList() {
@@ -414,6 +489,7 @@
     load(repo);
   });
   filter.addEventListener('input', renderList);
+  input.addEventListener('input', showCount);
 
   document.addEventListener('keydown', (event) => {
     const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName);
@@ -428,13 +504,14 @@
   function fromLocation() {
     const repo = new URL(location.href).searchParams.get('repo');
     const name = decodeURIComponent(location.hash.slice(1));
-    if (!repo) { input.value = ''; result = null; list.replaceChildren(); $('#repo-card').hidden = true; return welcome(); }
+    if (!repo) { input.value = ''; showCount(); result = null; list.replaceChildren(); $('#repo-card').hidden = true; return welcome(); }
     if (result && repo === input.value.trim()) {
-      const skill = result.skills.find((s) => s.name === name);
+      const skill = result.skills?.find((s) => s.name === name);
       if (skill) { selected = skill; renderList(); renderSkill(); }
       return;
     }
     input.value = repo;
+    showCount();
     load(repo, name);
   }
   window.addEventListener('popstate', fromLocation);

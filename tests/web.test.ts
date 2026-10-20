@@ -8,11 +8,12 @@ import type { AddressInfo } from 'node:net';
 import { pathToFileURL } from 'node:url';
 import { test } from 'node:test';
 import { createBrowserBackend } from '../src/browser.ts';
+import { parseGitHubOwner } from '../src/core/github.ts';
 import { renderMarkdown } from '../src/web/markdown.ts';
 import { createWebServer, listen, type WebScan } from '../src/web/server.ts';
-import { CLI, EXAMPLE_COMMIT, FIXTURE, open } from './helpers.ts';
+import { CLI, EXAMPLE_COMMIT, FIXTURE, open, owners } from './helpers.ts';
 
-const server = createWebServer(open);
+const server = createWebServer(open, owners);
 const base = await listen(server, 0);
 test.after(() => server.close());
 
@@ -44,7 +45,7 @@ test('serve: the page at the printed URL, with a field for the repository; the s
   assert.match(page.headers.get('content-type')!, /^text\/html/);
   const html = await page.text();
   assert.match(html, /<input id="repo" name="repo"/);
-  assert.match(html, /placeholder="https:\/\/github\.com\/owner\/repo, or a local directory"/);
+  assert.match(html, /placeholder="https:\/\/github\.com\/owner\/repo, an organization, or a local directory"/);
 
   const scanned = (await (await fetch(new URL(`/api/scan?repo=${encodeURIComponent(FIXTURE)}`, url))).json()) as WebScan;
   assert.deepEqual(scanned.skills.map((skill) => skill.name), ['code-style', 'commits', 'release-checklist']);
@@ -180,4 +181,59 @@ test('serve in the browser terminal → run it from the command line', async () 
   const browser = createBrowserBackend({ fetch: async () => new Response('', { status: 500 }) });
   assert.equal(await browser.run('skill-atlas serve'), 'The web view runs from the command line: ./skill-atlas serve');
   assert.match(await browser.run('skill-atlas help'), /serve \[--port <port>\] {11}open the local web view/);
+});
+
+async function owner(repo: string) {
+  const response = await fetch(new URL(`/api/owner?repo=${encodeURIComponent(repo)}`, base));
+  return { status: response.status, body: await response.json() };
+}
+
+test('an organization in the field: its repository count, from the API', async () => {
+  assert.deepEqual(await owner('github.com/JetBrains'), {
+    status: 200,
+    body: { id: 'JetBrains', url: 'https://github.com/JetBrains', repositories: 871 },
+  });
+  assert.deepEqual(await owner('github.com/nobody'), { status: 400, body: { error: 'Organization not found: https://github.com/nobody' } });
+  assert.deepEqual(await owner('github.com/JetBrains/example'), {
+    status: 400,
+    body: { error: 'Not a GitHub organization URL: github.com/JetBrains/example' },
+  });
+});
+
+test('an organization in the field: the page shows the count at its right as it is typed, without Enter', async () => {
+  const html = await (await fetch(base)).text();
+  assert.match(html, /<input id="repo"[^>]*>\s*<span id="repo-count" class="chip count"/);
+  assert.match(html, /input\.addEventListener\('input', showCount\)/);
+  assert.match(html, /fetch\(`\/api\/owner\?repo=/);
+  // The page knows an organization URL the way the core does.
+  const pattern = new RegExp(/const ownerOf = \(text\) => \/(.+)\/i\.exec/.exec(html)![1], 'i');
+  for (const input of ['https://github.com/JetBrains', 'github.com/JetBrains/', 'github.com/JetBrains/kotlin', 'JetBrains', './fixture']) {
+    assert.equal(pattern.exec(input)?.[1], parseGitHubOwner(input), input);
+  }
+});
+
+test('an organization scanned: the API answers each repository with skills, the most first', async () => {
+  const { status, body } = await api('https://github.com/JetBrains');
+  assert.equal(status, 200);
+  assert.deepEqual(body, {
+    owner: { id: 'JetBrains', url: 'https://github.com/JetBrains', repositories: 871 },
+    repositories: [
+      { id: 'JetBrains/MPS', name: 'MPS', url: 'https://github.com/JetBrains/MPS', skills: 41 },
+      { id: 'JetBrains/intellij-community', name: 'intellij-community', url: 'https://github.com/JetBrains/intellij-community', skills: 38 },
+      { id: 'JetBrains/kotlin', name: 'kotlin', url: 'https://github.com/JetBrains/kotlin', skills: 6 },
+      { id: 'JetBrains/Exposed', name: 'Exposed', url: 'https://github.com/JetBrains/Exposed', skills: 1 },
+      { id: 'JetBrains/koog', name: 'koog', url: 'https://github.com/JetBrains/koog', skills: 1 },
+    ],
+    warnings: [],
+  });
+  assert.deepEqual(await api('github.com/nobody'), { status: 400, body: { error: 'Organization not found: https://github.com/nobody' } });
+});
+
+test('an organization scanned: the page shows `N with skills, among them`, the first three, `+N more`', async () => {
+  const html = await (await fetch(base)).text();
+  assert.match(html, /const SHOWN_REPOSITORIES = 3;/);
+  assert.match(html, /`\$\{repositories\.length\} with skills, among them`/);
+  assert.match(html, /`\+\$\{more\} more`/);
+  // A repository opens its own scan.
+  assert.match(html, /onclick: \(\) => \{ input\.value = repository\.url; showCount\(\); form\.requestSubmit\(\); \}/);
 });
