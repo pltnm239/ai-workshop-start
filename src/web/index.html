@@ -61,7 +61,7 @@
     --text: #17181c;
     --text-soft: #3b3e46;
     --muted: #646873;
-    --accent: #4a68f0;
+    --accent: #3f5ce0;
     --accent-2: #8a4dff;
     --danger: #d23b3b;
     --warning: #9a5b00;
@@ -680,14 +680,15 @@
     themeButton.setAttribute('aria-label', `Switch to the ${other} theme`);
     themeButton.title = `Switch to the ${other} theme`;
   }
-  const keptTheme = () => { try { return localStorage.getItem('skill-atlas-theme'); } catch { return null; } };
+  // Chosen on this page, or kept from before: a browser that keeps nothing still remembers it until it closes.
+  let chosen = (() => { try { return localStorage.getItem('skill-atlas-theme'); } catch { return null; } })();
   themeButton.addEventListener('click', () => {
-    const theme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
-    try { localStorage.setItem('skill-atlas-theme', theme); } catch {} // not kept, still switched
-    showTheme(theme);
+    chosen = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+    try { localStorage.setItem('skill-atlas-theme', chosen); } catch {} // not kept, still switched
+    showTheme(chosen);
   });
   system?.addEventListener('change', (event) => {
-    if (!['light', 'dark'].includes(keptTheme())) showTheme(event.matches ? 'light' : 'dark');
+    if (!['light', 'dark'].includes(chosen)) showTheme(event.matches ? 'light' : 'dark');
   });
   showTheme(document.documentElement.dataset.theme);
   fromLocation();

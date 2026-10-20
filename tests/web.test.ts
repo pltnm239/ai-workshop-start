@@ -667,12 +667,15 @@ test('theme: both themes give every color, the same accent; the text readable at
   const rules = style.replace(/  :root(\[data-theme="light"\])? \{[^}]*\}/g, '');
   assert.deepEqual(rules.match(/:\s*#[0-9a-f]{3,6}\b|color: #|\brgba\((14|22), /gi), null);
   for (const [name, theme] of [['dark', dark], ['light', light]] as const) {
-    for (const text of ['--text', '--text-soft', '--muted', '--accent-text', '--danger-text', '--warning-text', '--code-text', '--front-matter']) {
+    for (const text of ['--text', '--text-soft', '--muted', '--accent', '--accent-text', '--danger-text', '--warning-text', '--code-text', '--front-matter']) {
       for (const background of ['--bg', '--bg-raised', '--bg-panel']) {
         const ratio = contrast(theme.get(text)!, theme.get(background)!);
         assert.ok(ratio >= 4.5, `${name}: ${text} on ${background}, ${ratio.toFixed(2)}:1`);
       }
     }
+    // A link button, `Open on GitHub ↗`, keeps the link color when hovered.
+    const hovered = contrast(theme.get('--accent')!, theme.get('--bg-hover')!);
+    assert.ok(hovered >= 4.5, `${name}: --accent on --bg-hover, ${hovered.toFixed(2)}:1`);
   }
 });
 
@@ -713,10 +716,13 @@ test('theme on the page: the toggle at the top bar switches, and the choice is k
   const toggle = page.$('#theme');
   assert.equal(toggle.parentElement!.tagName, 'HEADER');
   assert.equal(toggle.previousElementSibling, page.$('#scan')); // at the right of the field
-  assert.ok(toggle.querySelector('svg.sun') && toggle.querySelector('svg.moon'));
+  /** The icons the toggle shows: a sun in the dark theme, a moon in the light one. */
+  const icons = () => ['sun', 'moon'].filter((icon) => page.window.getComputedStyle(toggle.querySelector(`svg.${icon}`)!).display !== 'none');
   assert.deepEqual(page.theme(), { theme: 'dark', toggle: 'Switch to the light theme' });
+  assert.deepEqual(icons(), ['sun']);
   toggle.click();
   assert.deepEqual(page.theme(), { theme: 'light', toggle: 'Switch to the dark theme' });
+  assert.deepEqual(icons(), ['moon']);
   assert.equal(page.window.localStorage.getItem('skill-atlas-theme'), 'light');
   assert.equal(page.document.querySelectorAll('#skills li.item').length, 3); // the scan stays as it was
 
@@ -739,6 +745,10 @@ test('theme on the page: the browser keeps nothing, or something else → the sy
     assert.equal(page.theme().theme, 'light', JSON.stringify(kept));
     page.$('#theme').click();
     assert.deepEqual(page.theme(), { theme: 'dark', toggle: 'Switch to the light theme' });
+    // Not kept, still chosen: the system changing does not undo it while the page is open.
+    page.system.change(false);
+    page.system.change(true);
+    assert.equal(page.theme().theme, 'dark', JSON.stringify(kept));
     assert.deepEqual(page.errors, []);
   }
 });
