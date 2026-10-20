@@ -1,7 +1,7 @@
 # Repository analysis
 
 ## Input
-A **GitHub repository** URL, or a local directory
+A **GitHub repository** URL (`/tree/<commit>` pins a commit), or a local directory
 
 ## Output
 Every **project skill**: **name**, **description**, **link**
