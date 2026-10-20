@@ -7,17 +7,20 @@ export type Fetch = (url: string, init?: { headers?: Record<string, string> }) =
 
 export type GitHubOptions = {
   fetch: Fetch;
-  /** With a token, skills are found through code search; without it, through the tree. */
+  /** With a token, skills are found through code search; without it, or for a given ref, through the tree. */
   token?: string;
 };
 
 const API = 'https://api.github.com';
 const RAW = 'https://raw.githubusercontent.com';
 
-/** `https://github.com/owner/repo`, with or without the scheme, a trailing slash or `.git`. */
-export function parseGitHubUrl(input: string): { owner: string; repo: string } | undefined {
-  const match = /^(?:https?:\/\/)?(?:www\.)?github\.com\/([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?$/i.exec(input.trim());
-  return match ? { owner: match[1], repo: match[2] } : undefined;
+/**
+ * `https://github.com/owner/repo`, with or without the scheme, a trailing slash or `.git`,
+ * and with `/tree/<ref>` for a commit, tag or branch other than the default one.
+ */
+export function parseGitHubUrl(input: string): { owner: string; repo: string; ref?: string } | undefined {
+  const match = /^(?:https?:\/\/)?(?:www\.)?github\.com\/([\w.-]+)\/([\w.-]+?)(?:\.git)?(?:\/tree\/([^?#]+?))?\/?$/i.exec(input.trim());
+  return match ? { owner: match[1], repo: match[2], ref: match[3] } : undefined;
 }
 
 /** Resolves the default branch to a commit and lists the files that may be skills. */
@@ -30,9 +33,9 @@ export async function openGitHub(input: string, options: GitHubOptions): Promise
     `Repository not found: https://github.com/${name.owner}/${name.repo}`,
   );
   const id = info.full_name;
-  const { sha } = await github.json<{ sha: string }>(`${API}/repos/${id}/commits/${encodePath(info.default_branch)}`);
+  const { sha } = await github.json<{ sha: string }>(`${API}/repos/${id}/commits/${encodePath(name.ref ?? info.default_branch)}`);
   const warnings: string[] = [];
-  const paths = options.token ? await searchPaths(github, id) : await treePaths(github, id, sha, warnings);
+  const paths = options.token && !name.ref ? await searchPaths(github, id) : await treePaths(github, id, sha, warnings);
   const [organization, repo] = id.split('/');
   return {
     repository: { id, organization, name: repo, url: `https://github.com/${id}`, commit: sha },

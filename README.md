@@ -13,7 +13,7 @@ build-tools-bump-gradle-api — Bumps the Gradle API version that Kotlin Gradle 
 …
 ```
 
-Set `GITHUB_TOKEN` for a higher GitHub rate limit. `npm test` runs the tests.
+Set `GITHUB_TOKEN` for a higher GitHub rate limit. `GITHUB_TOKEN=$(gh auth token) npm test` runs the tests, the end-to-end ones scan real repositories.
 
 - [spec/](spec/): what it does. [AGENTS.md](AGENTS.md): the definition of done.
 - [fixture/](fixture/README.md): a small repository for the tests.
