@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Skill Atlas</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23a571ff'/%3E%3Cstop offset='1' stop-color='%233d7bff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='url(%23g)'/%3E%3Cpath d='M9 22l7-13 7 13M12 17h8' stroke='white' stroke-width='2.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #0e0f11;
+    --bg-raised: #16171a;
+    --bg-panel: #1b1c20;
+    --bg-hover: #23252a;
+    --bg-selected: #262a36;
+    --border: rgba(255, 255, 255, 0.07);
+    --border-strong: rgba(255, 255, 255, 0.13);
+    --text: #e9eaee;
+    --text-soft: #b7bac2;
+    --muted: #80848e;
+    --accent: #6f8cff;
+    --accent-2: #a571ff;
+    --gradient: linear-gradient(135deg, #a571ff 0%, #6f6bff 45%, #3d7bff 100%);
+    --danger: #ff6b6b;
+    --warning: #f2b84b;
+    --success: #4fd18b;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --sans: "Inter", "Inter Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.5 var(--sans);
+    -webkit-font-smoothing: antialiased;
+    display: flex;
+    flex-direction: column;
+  }
+  body::before {
+    content: "";
+    position: fixed;
+    inset: -40vh -20vw auto auto;
+    width: 80vw;
+    height: 80vh;
+    background: radial-gradient(closest-side, rgba(125, 100, 255, 0.13), transparent);
+    pointer-events: none;
+    z-index: 0;
+  }
+  button, input { font: inherit; color: inherit; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* Top bar: the mark, the field, the button */
+  header {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(14, 15, 17, 0.75);
+    backdrop-filter: blur(12px);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; }
+  .mark {
+    width: 26px; height: 26px; border-radius: 7px; background: var(--gradient);
+    display: grid; place-items: center; box-shadow: 0 0 0 1px rgba(255,255,255,.12) inset, 0 4px 14px rgba(111, 107, 255, 0.35);
+  }
+  .brand small { color: var(--muted); font-weight: 400; margin-left: 2px; }
+  form#scan { flex: 1; display: flex; gap: 8px; max-width: 760px; margin: 0 auto; }
+  .field {
+    flex: 1; display: flex; align-items: center; gap: 10px;
+    background: var(--bg-panel); border: 1px solid var(--border-strong); border-radius: 10px;
+    padding: 0 12px; height: 38px; transition: border-color .15s, box-shadow .15s;
+  }
+  .field:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(111, 140, 255, 0.18); }
+  .field svg { flex: none; color: var(--muted); }
+  .field input { flex: 1; min-width: 0; background: none; border: 0; outline: 0; font-family: var(--mono); font-size: 13px; }
+  .field input::placeholder { color: var(--muted); font-family: var(--sans); font-size: 14px; }
+  kbd {
+    font: 11px var(--mono); color: var(--muted); border: 1px solid var(--border-strong);
+    border-radius: 5px; padding: 1px 5px; background: var(--bg-raised);
+  }
+  .button {
+    display: inline-flex; align-items: center; gap: 6px; height: 38px; padding: 0 16px; border-radius: 10px;
+    border: 1px solid var(--border-strong); background: var(--bg-panel); cursor: pointer; font-weight: 500; white-space: nowrap;
+    transition: background .15s, transform .05s;
+  }
+  .button:hover { background: var(--bg-hover); text-decoration: none; }
+  .button:active { transform: translateY(1px); }
+  .button.primary { background: var(--gradient); border-color: transparent; color: white; box-shadow: 0 4px 16px rgba(111, 107, 255, 0.3); }
+  .button.primary:hover { filter: brightness(1.08); }
+  .button[disabled] { opacity: .6; cursor: progress; }
+  .button.small { height: 30px; padding: 0 11px; border-radius: 8px; font-size: 13px; }
+
+  /* Layout */
+  main { position: relative; z-index: 1; flex: 1; min-height: 0; display: grid; grid-template-columns: 340px 1fr; }
+  aside { border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; background: rgba(22, 23, 26, 0.6); }
+  .repo { padding: 18px 18px 14px; border-bottom: 1px solid var(--border); }
+  .repo-name { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 15px; word-break: break-all; }
+  .repo-name a { color: var(--text); }
+  .repo-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; color: var(--muted); font-size: 12px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 999px;
+    background: var(--bg-hover); border: 1px solid var(--border); color: var(--text-soft); font: 11.5px var(--mono); white-space: nowrap;
+  }
+  .chip.accent { background: rgba(111, 140, 255, 0.12); border-color: rgba(111, 140, 255, 0.28); color: #b9c6ff; }
+  .chip.warn { background: rgba(242, 184, 75, 0.1); border-color: rgba(242, 184, 75, 0.28); color: var(--warning); }
+  .filter { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  .filter input {
+    width: 100%; height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--bg-panel); outline: 0;
+  }
+  .filter input:focus { border-color: var(--accent); }
+  ul#skills { list-style: none; margin: 0; padding: 6px; overflow: auto; flex: 1; }
+  ul#skills li button {
+    width: 100%; text-align: left; border: 0; background: none; cursor: pointer;
+    padding: 10px 12px; border-radius: 10px; display: grid; gap: 3px; position: relative;
+  }
+  ul#skills li button:hover { background: var(--bg-hover); }
+  ul#skills li button[aria-selected="true"] { background: var(--bg-selected); box-shadow: 0 0 0 1px rgba(111, 140, 255, 0.25) inset; }
+  ul#skills li button[aria-selected="true"]::before {
+    content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px; border-radius: 3px; background: var(--gradient);
+  }
+  .skill-name { display: flex; align-items: center; gap: 8px; font-weight: 600; font-family: var(--mono); font-size: 13px; }
+  .skill-name .chip { margin-left: auto; font-size: 10.5px; height: 19px; padding: 0 6px; }
+  .skill-description { color: var(--muted); font-size: 12.5px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+  section#view { min-height: 0; overflow: auto; }
+  .doc { max-width: 920px; margin: 0 auto; padding: 32px 40px 80px; }
+  .doc-head { display: flex; gap: 16px; align-items: flex-start; }
+  .doc-head h1 { margin: 0; font: 600 24px/1.25 var(--mono); letter-spacing: -0.02em; word-break: break-word; }
+  .doc-head .actions { margin-left: auto; display: flex; gap: 8px; flex: none; }
+  .doc-description { color: var(--text-soft); font-size: 15px; margin: 10px 0 14px; }
+  .doc-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 22px; }
+  .tabs { display: inline-flex; padding: 3px; border-radius: 10px; background: var(--bg-panel); border: 1px solid var(--border); }
+  .tabs button { border: 0; background: none; height: 26px; padding: 0 12px; border-radius: 7px; cursor: pointer; color: var(--muted); font-size: 13px; }
+  .tabs button[aria-selected="true"] { background: var(--bg-hover); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.4); }
+
+  .card { background: var(--bg-raised); border: 1px solid var(--border); border-radius: var(--radius); }
+  .card-title {
+    display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-bottom: 1px solid var(--border);
+    color: var(--muted); font: 12px var(--mono);
+  }
+  .card-title .tabs { margin-left: auto; }
+  .properties { margin-bottom: 16px; }
+  .properties dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; }
+  .properties dt, .properties dd { margin: 0; padding: 8px 16px; border-top: 1px solid var(--border); font-size: 13px; }
+  .properties dt { color: var(--muted); font-family: var(--mono); }
+  .properties dd { font-family: var(--mono); color: var(--text-soft); white-space: pre-wrap; word-break: break-word; }
+  .properties dl > :nth-child(-n+2) { border-top: 0; }
+
+  /* The rendered SKILL.md */
+  .markdown { padding: 8px 28px 24px; color: var(--text-soft); font-size: 14.5px; line-height: 1.65; overflow-wrap: break-word; }
+  .markdown > :first-child { margin-top: 18px; }
+  .markdown h1, .markdown h2, .markdown h3, .markdown h4, .markdown h5, .markdown h6 { color: var(--text); line-height: 1.3; margin: 1.6em 0 .6em; letter-spacing: -0.01em; }
+  .markdown h1 { font-size: 1.6em; padding-bottom: .3em; border-bottom: 1px solid var(--border); }
+  .markdown h2 { font-size: 1.3em; padding-bottom: .25em; border-bottom: 1px solid var(--border); }
+  .markdown h3 { font-size: 1.1em; }
+  .markdown p, .markdown ul, .markdown ol, .markdown blockquote, .markdown pre, .markdown table { margin: 0 0 1em; }
+  .markdown ul, .markdown ol { padding-left: 1.6em; }
+  .markdown li + li { margin-top: .25em; }
+  .markdown li::marker { color: var(--muted); }
+  .markdown strong { color: var(--text); }
+  .markdown code { font: 0.86em var(--mono); background: rgba(255,255,255,.06); border: 1px solid var(--border); padding: .1em .38em; border-radius: 5px; color: #d7dcff; }
+  .markdown pre { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px 16px; overflow: auto; }
+  .markdown pre code { background: none; border: 0; padding: 0; font-size: 13px; color: var(--text-soft); }
+  .markdown blockquote { margin-left: 0; padding: 2px 16px; border-left: 3px solid var(--accent-2); color: var(--muted); background: rgba(165, 113, 255, .05); border-radius: 0 8px 8px 0; }
+  .markdown hr { border: 0; border-top: 1px solid var(--border); margin: 1.6em 0; }
+  .markdown table { border-collapse: collapse; display: block; overflow: auto; }
+  .markdown th, .markdown td { border: 1px solid var(--border-strong); padding: 6px 12px; }
+  .markdown th { background: var(--bg-panel); color: var(--text); font-weight: 600; }
+  .markdown .empty { color: var(--muted); font-style: italic; }
+  pre.source { margin: 0; padding: 18px 20px; font: 13px/1.6 var(--mono); color: var(--text-soft); white-space: pre-wrap; word-break: break-word; }
+  pre.source .fm { color: #b9a4ff; }
+
+  /* States */
+  .notice { display: flex; gap: 10px; align-items: flex-start; margin: 12px; padding: 10px 12px; border-radius: 10px; font-size: 13px; }
+  .notice.error { background: rgba(255, 107, 107, 0.08); border: 1px solid rgba(255, 107, 107, 0.3); color: #ffb3b3; }
+  .notice.warning { background: rgba(242, 184, 75, 0.07); border: 1px solid rgba(242, 184, 75, 0.25); color: #f3d28f; }
+  .notice ul { margin: 4px 0 0; padding-left: 18px; font-family: var(--mono); font-size: 12px; }
+  .notice summary { cursor: pointer; }
+  .placeholder { height: 100%; display: grid; place-items: center; text-align: center; padding: 40px; }
+  .placeholder h2 { margin: 18px 0 6px; font-size: 22px; letter-spacing: -0.02em; }
+  .placeholder p { margin: 0 auto; color: var(--muted); max-width: 440px; }
+  .placeholder .mark { width: 56px; height: 56px; border-radius: 16px; margin: 0 auto; }
+  .examples { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 22px; }
+  .examples button { cursor: pointer; }
+  .examples button:hover { border-color: var(--accent); color: var(--text); }
+  .list-empty { color: var(--muted); padding: 24px 16px; text-align: center; font-size: 13px; }
+  .skeleton { height: 54px; margin: 6px; border-radius: 10px; background: linear-gradient(90deg, var(--bg-panel), var(--bg-hover), var(--bg-panel)); background-size: 200% 100%; animation: shimmer 1.2s infinite; }
+  @keyframes shimmer { to { background-position: -200% 0; } }
+  .spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid rgba(255,255,255,.35); border-top-color: white; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  [hidden] { display: none !important; }
+
+  @media (max-width: 820px) {
+    header { flex-wrap: wrap; }
+    form#scan { order: 3; flex-basis: 100%; }
+    main { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+    aside { border-right: 0; border-bottom: 1px solid var(--border); max-height: 40vh; }
+    .doc { padding: 24px 18px 60px; }
+    .doc-head { flex-direction: column; }
+    .doc-head .actions { margin-left: 0; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <span class="mark" aria-hidden="true"><svg width="15" height="15" viewBox="0 0 32 32"><path d="M8 25l8-18 8 18M11.5 18h9" stroke="white" stroke-width="3.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+    Skill Atlas <small>local</small>
+  </div>
+  <form id="scan" autocomplete="off">
+    <label class="field">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      <input id="repo" name="repo" type="text" spellcheck="false" aria-label="Repository"
+             placeholder="https://github.com/owner/repo, or a local directory">
+      <kbd>/</kbd>
+    </label>
+    <button class="button primary" id="go" type="submit">Scan</button>
+  </form>
+</header>
+
+<main>
+  <aside>
+    <div id="repo-card" class="repo" hidden></div>
+    <div id="error" class="notice error" role="alert" hidden></div>
+    <details id="warnings" class="notice warning" hidden><summary></summary><ul></ul></details>
+    <div class="filter" id="filter-box" hidden><input id="filter" type="search" placeholder="Filter skills" aria-label="Filter skills"></div>
+    <ul id="skills" role="listbox" aria-label="Skills"></ul>
+  </aside>
+  <section id="view" aria-live="polite"></section>
+</main>
+
+<template id="welcome">
+  <div class="placeholder">
+    <div>
+      <div class="mark"><svg width="30" height="30" viewBox="0 0 32 32"><path d="M8 25l8-18 8 18M11.5 18h9" stroke="white" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <h2>Every agent skill in a repository</h2>
+      <p>Paste a GitHub repository link or a local directory. Skill Atlas finds each project <code>SKILL.md</code> and shows it here.</p>
+      <div class="examples">
+        <button class="chip" data-example="https://github.com/JetBrains/kotlin">JetBrains/kotlin</button>
+        <button class="chip" data-example="https://github.com/JetBrains/intellij-community">JetBrains/intellij-community</button>
+        <button class="chip" data-example="./fixture">./fixture</button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script type="module">
+  const $ = (selector) => document.querySelector(selector);
+  const form = $('#scan'), input = $('#repo'), go = $('#go'), list = $('#skills'), view = $('#view');
+  const filter = $('#filter');
+  let result = null, selected = null, mode = 'preview', request = 0;
+
+  /** An element with attributes and children; text is always text, never HTML. */
+  function h(tag, attributes = {}, ...children) {
+    const element = document.createElement(tag);
+    for (const [key, value] of Object.entries(attributes)) {
+      if (value === false || value == null) continue;
+      if (key.startsWith('on')) element.addEventListener(key.slice(2), value);
+      else element.setAttribute(key, value === true ? '' : value);
+    }
+    element.append(...children.flat().filter((child) => child != null && child !== false));
+    return element;
+  }
+
+  const firstSentence = (text) => {
+    const line = text.replace(/\s+/g, ' ').trim();
+    return /^.*?[.!?](?=\s|$)/.exec(line)?.[0] ?? line;
+  };
+  const shortRoot = (root) => root.split('/')[0];
+  const onGitHub = () => result?.repository.url.startsWith('https://github.com/');
+
+  function welcome() {
+    view.replaceChildren($('#welcome').content.cloneNode(true));
+    view.querySelectorAll('[data-example]').forEach((button) =>
+      button.addEventListener('click', () => { input.value = button.dataset.example; form.requestSubmit(); }));
+  }
+
+  async function load(repo, skillName) {
+    const id = ++request;
+    go.disabled = true;
+    go.replaceChildren(h('span', { class: 'spinner' }), 'Scanning');
+    $('#error').hidden = true;
+    $('#warnings').hidden = true;
+    $('#repo-card').hidden = true;
+    $('#filter-box').hidden = true;
+    list.replaceChildren(...Array.from({ length: 5 }, () => h('li', { class: 'skeleton' })));
+    view.replaceChildren();
+    try {
+      const response = await fetch(`/api/scan?repo=${encodeURIComponent(repo)}`);
+      const body = await response.json();
+      if (id !== request) return;
+      if (!response.ok) throw new Error(body.error ?? `The server answered ${response.status}`);
+      result = body;
+      filter.value = '';
+      showRepository();
+      const skill = result.skills.find((s) => s.name === skillName) ?? result.skills[0];
+      if (skill) select(skill, false);
+      else view.replaceChildren(h('div', { class: 'placeholder' }, h('div', {},
+        h('h2', {}, 'No project skills here'),
+        h('p', {}, 'Skills live in .agents/skills, .claude/skills, .github/skills or agent/skills at the top of the repository.'))));
+    } catch (error) {
+      if (id !== request) return;
+      result = null;
+      list.replaceChildren();
+      $('#error').hidden = false;
+      $('#error').replaceChildren(h('strong', {}, 'Cannot scan. '), error.message);
+      welcome();
+    } finally {
+      if (id === request) { go.disabled = false; go.replaceChildren('Scan'); }
+    }
+  }
+
+  function showRepository() {
+    const { repository, skills, warnings } = result;
+    const card = $('#repo-card');
+    card.hidden = false;
+    const count = `${skills.length} ${skills.length === 1 ? 'skill' : 'skills'}`;
+    card.replaceChildren(
+      h('div', { class: 'repo-name' }, h('a', { href: repository.url, target: '_blank', rel: 'noopener' }, repository.id)),
+      h('div', { class: 'repo-meta' },
+        h('span', { class: 'chip accent' }, count),
+        repository.commit && h('span', { class: 'chip', title: repository.commit }, `@ ${repository.commit.slice(0, 7)}`),
+        !onGitHub() && h('span', { class: 'chip' }, 'local')),
+    );
+    const box = $('#warnings');
+    box.hidden = warnings.length === 0;
+    box.querySelector('summary').textContent = `${warnings.length} ${warnings.length === 1 ? 'warning' : 'warnings'}`;
+    box.querySelector('ul').replaceChildren(...warnings.map((warning) => h('li', {}, warning)));
+    $('#filter-box').hidden = skills.length < 6;
+    renderList();
+  }
+
+  function renderList() {
+    const query = filter.value.trim().toLowerCase();
+    const shown = result.skills.filter((s) => !query || s.name.toLowerCase().includes(query) || s.description.toLowerCase().includes(query));
+    list.replaceChildren(...shown.map((skill) => h('li', {},
+      h('button', { type: 'button', role: 'option', 'aria-selected': String(skill === selected), 'data-id': skill.id, onclick: () => select(skill) },
+        h('span', { class: 'skill-name' }, skill.name, h('span', { class: 'chip', title: skill.path }, shortRoot(skill.root))),
+        skill.description && h('span', { class: 'skill-description' }, firstSentence(skill.description))))));
+    if (shown.length === 0) list.replaceChildren(h('li', { class: 'list-empty' }, 'No skills match'));
+  }
+
+  function select(skill, push = true) {
+    selected = skill;
+    for (const button of list.querySelectorAll('button[role="option"]')) button.setAttribute('aria-selected', String(button.dataset.id === skill.id));
+    list.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
+    const url = new URL(location.href);
+    url.searchParams.set('repo', input.value.trim());
+    url.hash = encodeURIComponent(skill.name);
+    history[push ? 'pushState' : 'replaceState'](null, '', url);
+    renderSkill();
+  }
+
+  function renderSkill() {
+    const skill = selected;
+    const properties = Object.entries(skill.properties);
+    const tab = (name, label) => h('button', { type: 'button', role: 'tab', 'aria-selected': String(mode === name), onclick: () => { mode = name; renderSkill(); } }, label);
+    const body = mode === 'preview' ? previewOf(skill) : sourceOf(skill.content);
+    view.replaceChildren(h('article', { class: 'doc' },
+      h('div', { class: 'doc-head' },
+        h('h1', {}, skill.name),
+        h('div', { class: 'actions' },
+          h('button', { class: 'button small', type: 'button', onclick: (event) => copy(event.currentTarget, skill.link) }, 'Copy link'),
+          h('a', { class: 'button small', href: skill.link, target: '_blank', rel: 'noopener' }, onGitHub() ? 'Open on GitHub ↗' : 'Open file ↗'))),
+      skill.description ? h('p', { class: 'doc-description' }, skill.description) : h('p', { class: 'doc-description', style: 'color:var(--muted)' }, 'No description'),
+      h('div', { class: 'doc-meta' },
+        h('span', { class: 'chip accent' }, skill.path),
+        ...skill.copies.map((copy) => h('span', { class: 'chip', title: 'The same skill for another agent' }, `also in ${copy}`))),
+      properties.length > 0 && h('div', { class: 'card properties' },
+        h('div', { class: 'card-title' }, 'front matter'),
+        h('dl', {}, ...properties.flatMap(([key, value]) => [h('dt', {}, key), h('dd', {}, typeof value === 'string' ? value : JSON.stringify(value, null, 2))]))),
+      h('div', { class: 'card' },
+        h('div', { class: 'card-title' }, 'SKILL.md', h('div', { class: 'tabs', role: 'tablist' }, tab('preview', 'Preview'), tab('source', 'Source'))),
+        body)));
+    view.scrollTop = 0;
+  }
+
+  function previewOf(skill) {
+    const container = h('div', { class: 'markdown' });
+    // Rendered by the server from escaped text: no HTML from the repository gets through.
+    container.innerHTML = skill.html || '<p class="empty">The SKILL.md has no body.</p>';
+    return container;
+  }
+
+  function sourceOf(content) {
+    const match = /^(---\r?\n[\s\S]*?\r?\n---)(\r?\n[\s\S]*)?$/.exec(content);
+    return h('pre', { class: 'source' }, match ? [h('span', { class: 'fm' }, match[1]), match[2] ?? ''] : content);
+  }
+
+  async function copy(button, text) {
+    await navigator.clipboard?.writeText(text);
+    button.textContent = 'Copied';
+    setTimeout(() => (button.textContent = 'Copy link'), 1200);
+  }
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const repo = input.value.trim();
+    if (!repo) return input.focus();
+    const url = new URL(location.href);
+    url.search = new URLSearchParams({ repo }).toString();
+    url.hash = '';
+    history.pushState(null, '', url);
+    load(repo);
+  });
+  filter.addEventListener('input', renderList);
+
+  document.addEventListener('keydown', (event) => {
+    const typing = /^(INPUT|TEXTAREA)$/.test(document.activeElement?.tagName);
+    if (event.key === '/' && !typing) { event.preventDefault(); input.focus(); input.select(); return; }
+    if (typing || !result || !selected || !['ArrowDown', 'ArrowUp', 'j', 'k'].includes(event.key)) return;
+    const buttons = [...list.querySelectorAll('button[role="option"]')];
+    const index = buttons.findIndex((button) => button.dataset.id === selected.id);
+    const next = buttons[index + (event.key === 'ArrowDown' || event.key === 'j' ? 1 : -1)];
+    if (next) { event.preventDefault(); next.click(); next.focus(); }
+  });
+
+  function fromLocation() {
+    const repo = new URL(location.href).searchParams.get('repo');
+    const name = decodeURIComponent(location.hash.slice(1));
+    if (!repo) { input.value = ''; result = null; list.replaceChildren(); $('#repo-card').hidden = true; return welcome(); }
+    if (result && repo === input.value.trim()) {
+      const skill = result.skills.find((s) => s.name === name);
+      if (skill) { selected = skill; renderList(); renderSkill(); }
+      return;
+    }
+    input.value = repo;
+    load(repo, name);
+  }
+  window.addEventListener('popstate', fromLocation);
+  fromLocation();
+  if (!input.value) input.focus();
+</script>
+</body>
+</html>
