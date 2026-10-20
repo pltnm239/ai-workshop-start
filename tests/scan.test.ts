@@ -146,3 +146,17 @@ test('a copy is printed as `also in <paths>`', async () => {
     '  also in .claude/skills/mps-tests/SKILL.md',
   ]);
 });
+
+test('a pinned commit is listed from its tree, even with a token: code search only knows the default branch', async () => {
+  const pinned = replay({
+    'https://api.github.com/repos/JetBrains/example': { status: 200, body: { full_name: 'JetBrains/example', default_branch: 'main' } },
+    [`https://api.github.com/repos/JetBrains/example/commits/${EXAMPLE_COMMIT}`]: { status: 200, body: { sha: EXAMPLE_COMMIT } },
+    [`https://api.github.com/repos/JetBrains/example/git/trees/${EXAMPLE_COMMIT}?recursive=1`]: {
+      status: 200,
+      body: { truncated: false, tree: [{ path: '.claude/skills/commits/SKILL.md', mode: '100644', type: 'blob', sha: 'a' }] },
+    },
+  });
+  const source = await openGitHub(`github.com/JetBrains/example/tree/${EXAMPLE_COMMIT}`, { fetch: pinned, token: 'test' });
+  assert.equal(source.repository.commit, EXAMPLE_COMMIT);
+  assert.deepEqual(source.paths, ['.claude/skills/commits/SKILL.md']);
+});
