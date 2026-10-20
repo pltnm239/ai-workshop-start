@@ -50,7 +50,7 @@ export const ORGANIZATION_HITS = [
 
 const search = (owner: string, page: number) => `https://api.github.com/search/code?q=filename:SKILL.md+user:${owner}&per_page=100&page=${page}`;
 
-/** What GitHub answers for organizations: JetBrains, with skills; empty-org, without; nobody does not exist. */
+/** What GitHub answers for organizations: JetBrains, with skills; empty-org, without; nobody does not exist; busy-org is rate limited. */
 const ORGANIZATIONS: Recording = {
   'https://api.github.com/users/JetBrains': { status: 200, body: { login: 'JetBrains', html_url: 'https://github.com/JetBrains', public_repos: 871 } },
   // The second page repeats the last hit of the first: pages can.
@@ -59,6 +59,8 @@ const ORGANIZATIONS: Recording = {
   'https://api.github.com/users/empty-org': { status: 200, body: { login: 'empty-org', html_url: 'https://github.com/empty-org', public_repos: 1 } },
   [search('empty-org', 1)]: { status: 200, body: { total_count: 0, items: [] } },
   'https://api.github.com/users/nobody': { status: 404, body: { message: 'Not Found' } },
+  // Held off for a minute: not the answer to keep.
+  'https://api.github.com/users/busy-org': { status: 429, body: { message: 'try again in 60s' } },
 };
 
 const github = replay({ ...EXAMPLE, ...ORGANIZATIONS });

@@ -331,10 +331,14 @@
     // A short pause first: each letter of a name being typed is not worth a GitHub request.
     counting = setTimeout(() => {
       if (!owners.has(name)) {
-        const asked = fetch(`/api/owner?repo=${encodeURIComponent(`github.com/${typed}`)}`)
-          .then((response) => (response.ok ? response.json() : null), () => null);
+        // Not found stays an answer, null; a rate limit or no network, undefined, is asked again later.
+        const asked = fetch(`/api/owner?repo=${encodeURIComponent(`github.com/${typed}`)}`).then(async (response) => {
+          if (response.ok) return response.json();
+          const { error = '' } = await response.json().catch(() => ({}));
+          return error.startsWith('Organization not found') ? null : undefined;
+        }, () => undefined);
         owners.set(name, asked);
-        asked.then((owner) => owner || owners.delete(name));
+        asked.then((owner) => owner === undefined && owners.delete(name));
       }
       owners.get(name).then((owner) => {
         if (ownerOf(input.value)?.toLowerCase() !== name) return;

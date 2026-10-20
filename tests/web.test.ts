@@ -539,6 +539,18 @@ test('an organization in the field: its repository count at the right as it is t
     await new Promise((resolve) => setTimeout(resolve, 50));
     assert.equal(count.hidden, true, name);
   }
+  // Not found is an answer: typed again, it is not asked again.
+  await typeRepository(page, 'github.com/nobody');
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  assert.equal(owners().length, 3);
+  // A rate limit is not: the same name is asked again later.
+  for (const asked of [4, 5]) {
+    await typeRepository(page, 'github.com/busy-org');
+    await page.until(() => owners().length === asked);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.equal(count.hidden, true);
+    await typeRepository(page, 'github.com/');
+  }
   assert.deepEqual(page.errors, []);
 });
 
