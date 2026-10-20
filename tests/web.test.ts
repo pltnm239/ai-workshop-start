@@ -321,11 +321,19 @@ test('filter: smooth on the page; skills fold away and come back, highlights fad
   assert.match(page, /`\$\{count\} of \$\{result\.skills\.length\}`/);
 });
 
+/** The browser around the page: the system's theme, `light` or not, and what the browser keeps. */
+interface Browser {
+  /** `prefers-color-scheme: light`; undefined: a browser without matchMedia. */
+  light?: boolean;
+  /** localStorage before the page loads; null: a browser that keeps nothing, it throws. */
+  kept?: Record<string, string> | null;
+}
+
 /**
  * The page as the server sends it, its script running on a DOM, against this server. jsdom runs no
  * module scripts: the script runs as a classic one, with the served /filter.js in place of its import.
  */
-async function openPage(path: string) {
+async function openPage(path: string, browser: Browser = {}) {
   const html = await (await fetch(base)).text();
   const filter = (await (await fetch(new URL('/filter.js', base))).text()).replace(/^export /gm, '');
   const page = html
@@ -334,6 +342,11 @@ async function openPage(path: string) {
   assert.notEqual(page, html);
   const errors: unknown[] = [];
   const asked: string[] = [];
+  /** The system's theme as the page sees it; `system.change(light)` changes it as an OS setting does. */
+  const system = { light: browser.light, listeners: [] as ((event: { matches: boolean }) => void)[], change(light: boolean) {
+    system.light = light;
+    for (const listener of system.listeners) listener({ matches: light });
+  } };
   const dom = new JSDOM(page, {
     url: new URL(path, base).href,
     runScripts: 'dangerously',
@@ -342,6 +355,18 @@ async function openPage(path: string) {
       window.fetch = ((url: string, init?: RequestInit) => (asked.push(url), fetch(new URL(url, base), init))) as typeof fetch;
       window.HTMLElement.prototype.scrollIntoView = () => {};
       window.addEventListener('error', (event) => errors.push(event.error));
+      if (browser.light !== undefined) {
+        window.matchMedia = ((query: string) => ({
+          media: query,
+          get matches() { return query === '(prefers-color-scheme: light)' && !!system.light; },
+          addEventListener: (_: string, listener: (event: { matches: boolean }) => void) => system.listeners.push(listener),
+        })) as unknown as typeof window.matchMedia;
+      }
+      if (browser.kept === null) {
+        Object.defineProperty(window, 'localStorage', { get() { throw new window.DOMException('The access is denied', 'SecurityError'); } });
+      } else {
+        for (const [key, value] of Object.entries(browser.kept ?? {})) window.localStorage.setItem(key, value);
+      }
     },
   });
   const { window } = dom;
@@ -354,7 +379,9 @@ async function openPage(path: string) {
   };
   await until(() => !$('#repo-card').hidden || !$('#error').hidden || !!document.querySelector('.placeholder'));
   return {
-    window, document, $, errors, until,
+    window, document, $, errors, until, system,
+    /** The theme on the page, and what its toggle offers. */
+    theme: () => ({ theme: document.documentElement.dataset.theme, toggle: $('#theme').getAttribute('aria-label') }),
     /** What the page asked the server for, in order. */
     asked,
     /** The rows the filter shows: `name — description line`, highlights in brackets. */
@@ -604,4 +631,114 @@ test('an organization without project skills on the page: said so, nothing more 
   assert.equal(page.document.querySelectorAll('.owner li').length, 0);
   assert.equal(page.document.querySelector('.owner .more'), null);
   assert.deepEqual(page.errors, []);
+});
+
+/** The CSS custom properties of a rule in the page, `--name` → value. */
+function properties(page: string, selector: string) {
+  const start = page.indexOf(`  ${selector} {\n`);
+  assert.notEqual(start, -1, selector);
+  const block = page.slice(start, page.indexOf('\n  }\n', start));
+  return new Map([...block.matchAll(/^\s+(--[\w-]+): ([^;]+);$/gm)].map(([, name, value]) => [name, value]));
+}
+
+/** The WCAG contrast ratio of two `#rrggbb` colors. */
+function contrast(one: string, other: string) {
+  const luminance = (hex: string) => {
+    const [r, g, b] = [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16) / 255)
+      .map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const [light, dark] = [luminance(one), luminance(other)].sort((a, b) => b - a);
+  return (light + 0.05) / (dark + 0.05);
+}
+
+test('theme: both themes give every color, the same accent; the text readable at 4.5:1 on the page and its panels', async () => {
+  const page = await (await fetch(base)).text();
+  const dark = properties(page, ':root');
+  const light = properties(page, ':root[data-theme="light"]');
+  const colors = [...dark].filter(([, value]) => /^(#|rgba)/.test(value)).map(([name]) => name);
+  assert.ok(colors.length > 10);
+  assert.deepEqual(colors.filter((name) => !light.has(name)), []);
+  assert.ok(!light.has('--gradient')); // the same gradient accent in both
+  assert.match(page, /:root \{[^}]*color-scheme: dark;/);
+  assert.match(page, /:root\[data-theme="light"\] \{[^}]*color-scheme: light;/);
+  // No color left out of the variables, where a theme could not change it.
+  const style = page.slice(page.indexOf('<style>'), page.indexOf('</style>'));
+  const rules = style.replace(/  :root(\[data-theme="light"\])? \{[^}]*\}/g, '');
+  assert.deepEqual(rules.match(/:\s*#[0-9a-f]{3,6}\b|color: #|\brgba\((14|22), /gi), null);
+  for (const [name, theme] of [['dark', dark], ['light', light]] as const) {
+    for (const text of ['--text', '--text-soft', '--muted', '--accent-text', '--danger-text', '--warning-text', '--code-text', '--front-matter']) {
+      for (const background of ['--bg', '--bg-raised', '--bg-panel']) {
+        const ratio = contrast(theme.get(text)!, theme.get(background)!);
+        assert.ok(ratio >= 4.5, `${name}: ${text} on ${background}, ${ratio.toFixed(2)}:1`);
+      }
+    }
+  }
+});
+
+test('theme: set before the page shows, in <head> ahead of the styles', async () => {
+  const page = await (await fetch(base)).text();
+  const head = page.slice(0, page.indexOf('</head>'));
+  assert.ok(head.indexOf("localStorage.getItem('skill-atlas-theme')") > -1);
+  assert.ok(head.indexOf('document.documentElement.dataset.theme') < head.indexOf('<style>'));
+});
+
+test('theme on the page: no theme chosen → the system light gives the light theme; dark or not saying, the dark one', async (t) => {
+  for (const [light, theme] of [[true, 'light'], [false, 'dark'], [undefined, 'dark']] as const) {
+    const page = await openPage('/', { light });
+    t.after(page.close);
+    assert.deepEqual(page.theme(), { theme, toggle: `Switch to the ${theme === 'light' ? 'dark' : 'light'} theme` }, String(light));
+    assert.deepEqual(page.errors, []);
+  }
+});
+
+test('theme on the page: it follows the system as that changes, until a theme is chosen', async (t) => {
+  const page = await openPage('/', { light: false });
+  t.after(page.close);
+  page.system.change(true);
+  assert.equal(page.theme().theme, 'light');
+  page.system.change(false);
+  assert.equal(page.theme().theme, 'dark');
+  page.$('#theme').click();
+  assert.equal(page.theme().theme, 'light');
+  page.system.change(false); // the system changes after a theme is chosen: the chosen theme stays
+  page.system.change(true);
+  page.system.change(false);
+  assert.equal(page.theme().theme, 'light');
+});
+
+test('theme on the page: the toggle at the top bar switches, and the choice is kept, after a reload too', async (t) => {
+  const page = await openPage(`/?repo=${encodeURIComponent(FIXTURE)}`, { light: false });
+  t.after(page.close);
+  const toggle = page.$('#theme');
+  assert.equal(toggle.parentElement!.tagName, 'HEADER');
+  assert.equal(toggle.previousElementSibling, page.$('#scan')); // at the right of the field
+  assert.ok(toggle.querySelector('svg.sun') && toggle.querySelector('svg.moon'));
+  assert.deepEqual(page.theme(), { theme: 'dark', toggle: 'Switch to the light theme' });
+  toggle.click();
+  assert.deepEqual(page.theme(), { theme: 'light', toggle: 'Switch to the dark theme' });
+  assert.equal(page.window.localStorage.getItem('skill-atlas-theme'), 'light');
+  assert.equal(page.document.querySelectorAll('#skills li.item').length, 3); // the scan stays as it was
+
+  // A reload: the same browser keeps the choice, and it wins over the system's.
+  const again = await openPage('/', { light: false, kept: { 'skill-atlas-theme': 'light' } });
+  t.after(again.close);
+  assert.deepEqual(again.theme(), { theme: 'light', toggle: 'Switch to the dark theme' });
+  again.$('#theme').click();
+  assert.equal(again.theme().theme, 'dark');
+  const darkAgain = await openPage('/', { light: true, kept: { 'skill-atlas-theme': again.window.localStorage.getItem('skill-atlas-theme')! } });
+  t.after(darkAgain.close);
+  assert.equal(darkAgain.theme().theme, 'dark');
+  assert.deepEqual([page, again, darkAgain].flatMap((p) => p.errors), []);
+});
+
+test('theme on the page: the browser keeps nothing, or something else → the system theme; the toggle still switches', async (t) => {
+  for (const kept of [null, { 'skill-atlas-theme': 'purple' }]) {
+    const page = await openPage('/', { light: true, kept });
+    t.after(page.close);
+    assert.equal(page.theme().theme, 'light', JSON.stringify(kept));
+    page.$('#theme').click();
+    assert.deepEqual(page.theme(), { theme: 'dark', toggle: 'Switch to the light theme' });
+    assert.deepEqual(page.errors, []);
+  }
 });

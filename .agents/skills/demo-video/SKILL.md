@@ -25,6 +25,7 @@ Pinned commits, so the video is the same every time.
 | Filter | the same MPS input | Scan, type `mps-aspect` in the filter, then Escape | 42 skills narrowed to the matches, then back |
 | Local | the repository's own `fixture` directory | Scan | 3 skills, the warning for the malformed one |
 | Organization | `github.com/JetBrains` | Scan | the repositories with skills (live, can be slow) |
+| Theme | the repository's own `fixture` directory | Scan, open a skill, click the theme toggle, reload | the light theme, kept after the reload |
 
 ## Rules
 - No secrets on screen: never type or show the token.
