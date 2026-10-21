@@ -665,9 +665,14 @@
     if (next) { event.preventDefault(); next.click(); next.focus(); }
   });
 
+  /** The skill in the address. A % that escapes nothing, from a cut or hand-edited link, is kept as it is: no skill has that name. */
+  function skillOf(hash) {
+    try { return decodeURIComponent(hash); } catch { return hash; }
+  }
+
   function fromLocation() {
     const repo = new URL(location.href).searchParams.get('repo');
-    const name = decodeURIComponent(location.hash.slice(1));
+    const name = skillOf(location.hash.slice(1));
     if (!repo) {
       input.value = ''; showCount(); result = null; list.replaceChildren();
       for (const part of ['#repo-card', '#filter-box', '#warnings', '#error']) $(part).hidden = true;

@@ -506,6 +506,25 @@ test('filter on the page: back to the start page → no filter, and nothing brea
   assert.deepEqual(page.errors, []);
 });
 
+test('the address: a skill that is not there, or a % that escapes nothing → the skills, the first one opened', async (t) => {
+  for (const hash of ['#nothing-here', '#%E0', '#%', '#code%']) {
+    const page = await openPage(`/?repo=${encodeURIComponent(FIXTURE)}${hash}`);
+    t.after(page.close);
+    assert.equal(page.shown().length, 3, hash);
+    assert.equal(page.$('h1').textContent, 'code-style', hash);
+    assert.equal(page.selected(), 'code-style', hash);
+    assert.equal(page.window.location.hash, '#code-style', hash);
+    assert.deepEqual(page.errors, [], hash);
+  }
+  const named = await openPage(`/?repo=${encodeURIComponent(FIXTURE)}#commits`);
+  t.after(named.close);
+  assert.equal(named.selected(), 'commits');
+  named.window.history.pushState(null, '', `/?repo=${encodeURIComponent(FIXTURE)}#%E0`);
+  named.window.dispatchEvent(new named.window.PopStateEvent('popstate'));
+  assert.equal(named.selected(), 'commits');
+  assert.deepEqual(named.errors, []);
+});
+
 /** The page's field, typed into a letter at a time, `pause` milliseconds apart. */
 async function typeRepository(page: Awaited<ReturnType<typeof openPage>>, text: string, from = '', pause = 0) {
   const input = page.$('#repo') as HTMLInputElement;
