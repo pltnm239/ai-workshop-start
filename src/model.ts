@@ -13,7 +13,11 @@ export function ask(prompt: string): Promise<string> {
     claude.on('error', (error: NodeJS.ErrnoException) =>
       reject(new AtlasError(error.code === 'ENOENT' ? 'Grouping with a model needs Claude Code: claude is not on the PATH' : `claude -p failed: ${error.message}`)),
     );
-    claude.on('close', (code) => (code === 0 ? resolve(stdout) : reject(new AtlasError(`claude -p failed, exit code ${code}: ${(stderr || stdout).trim()}`))));
+    claude.on('close', (code, signal) => {
+      if (code === 0) return resolve(stdout);
+      const message = (stderr || stdout).trim();
+      reject(new AtlasError(`claude -p failed, ${code === null ? `killed by ${signal}` : `exit code ${code}`}${message ? `: ${message}` : ''}`));
+    });
     // An early exit closes stdin: the close above says why, not the write.
     claude.stdin.on('error', () => {});
     claude.stdin.end(prompt);

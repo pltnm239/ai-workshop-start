@@ -24,12 +24,14 @@ const STOPWORDS = new Set(
 
 /** Words, lower case, plurals folded, no stopwords: `Writing lint checks` → `lint`, `check`. */
 export function words(text: string): Set<string> {
-  const all = text.toLowerCase().split(/[^a-z0-9]+/).map(singular);
+  // A stopword is left out as it is written, `this`, and once folded, `covers`.
+  const all = text.toLowerCase().split(/[^a-z0-9]+/).filter((word) => !STOPWORDS.has(word)).map(singular);
   return new Set(all.filter((word) => word.length > 2 && !/^\d+$/.test(word) && !STOPWORDS.has(word)));
 }
 
+/** `checks` → `check`, `classes` → `class`, `libraries` → `library`; not `analysis`, `status` or `access`. */
 function singular(word: string): string {
-  if (word.length <= 3 || !word.endsWith('s') || word.endsWith('ss')) return word;
+  if (word.length <= 3 || !word.endsWith('s') || /(?:ss|is|us)$/.test(word)) return word;
   if (word.endsWith('ies')) return `${word.slice(0, -3)}y`;
   if (/(?:ss|sh|ch|x)es$/.test(word)) return word.slice(0, -2);
   return word.slice(0, -1);
@@ -43,28 +45,29 @@ function singular(word: string): string {
  * A word in more than half of four or more skills, `mps` in JetBrains/MPS, tells them apart from nothing: skipped.
  */
 export function mapByWords(skills: Pick<Skill, 'name' | 'description'>[]): SkillMap {
-  const names = new Map(skills.map((skill) => [skill.name, words(skill.name)]));
-  const descriptions = new Map(skills.map((skill) => [skill.name, words(`${skill.name} ${firstSentence(skill.description)}`)]));
-  const left = new Set(names.keys());
+  // By index, not by name: two skills can have the same name, in two directories.
+  const names = skills.map((skill) => words(skill.name));
+  const descriptions = skills.map((skill) => words(`${skill.name} ${firstSentence(skill.description)}`));
+  const left = new Set(skills.keys());
   const groups: SkillGroup[] = [];
   for (const tier of [names, descriptions]) {
-    const common = new Set(skills.length >= 4 ? [...counts(tier, tier.keys())].filter(([, n]) => n > skills.length / 2).map(([word]) => word) : []);
+    const common = new Set(skills.length >= 4 ? [...counts(tier, skills.keys())].filter(([, n]) => n > skills.length / 2).map(([word]) => word) : []);
     for (;;) {
       const [best] = [...counts(tier, left)].filter(([word, n]) => n >= 2 && !common.has(word)).sort(([a, n], [b, m]) => m - n || compare(a, b));
       if (!best) break;
-      const members = [...left].filter((name) => tier.get(name)!.has(best[0]));
-      for (const name of members) left.delete(name);
-      groups.push({ name: best[0], skills: members });
+      const members = [...left].filter((index) => tier[index].has(best[0]));
+      for (const index of members) left.delete(index);
+      groups.push({ name: best[0], skills: members.map((index) => skills[index].name) });
     }
   }
-  if (left.size > 0) groups.push({ name: OTHER, skills: [...left] });
+  if (left.size > 0) groups.push({ name: OTHER, skills: [...left].map((index) => skills[index].name) });
   return sortMap(groups);
 }
 
-/** How many of the skills named have each word. */
-function counts(tier: Map<string, Set<string>>, skills: Iterable<string>): Map<string, number> {
+/** How many of the skills at these indices have each word. */
+function counts(tier: Set<string>[], indices: Iterable<number>): Map<string, number> {
   const count = new Map<string, number>();
-  for (const name of skills) for (const word of tier.get(name)!) count.set(word, (count.get(word) ?? 0) + 1);
+  for (const index of indices) for (const word of tier[index]) count.set(word, (count.get(word) ?? 0) + 1);
   return count;
 }
 
@@ -83,30 +86,58 @@ export function mapPrompt(repository: string, skills: Pick<Skill, 'name' | 'desc
 /**
  * The model's answer as a map. The JSON may come inside a code fence or with words around it.
  * A name that is not one of the skills is dropped, a skill in two groups stays in the first,
- * a skill the answer leaves out goes to `other`. No JSON of that shape: an AtlasError.
+ * a skill the answer leaves out goes to `other`; a name two skills have puts both in its group.
+ * No JSON of that shape: an AtlasError.
  */
 export function parseMapAnswer(answer: string, skills: Pick<Skill, 'name'>[]): SkillMap {
-  const json = answer.slice(answer.indexOf('{'), answer.lastIndexOf('}') + 1);
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(json);
-  } catch {
-    parsed = undefined;
-  }
-  const groups = (parsed as { groups?: unknown } | undefined)?.groups;
-  if (!Array.isArray(groups) || !groups.every(isGroup)) {
+  const groups = jsonObjects(answer)
+    .map((object) => (object as { groups?: unknown } | null)?.groups)
+    .find((groups): groups is SkillGroup[] => Array.isArray(groups) && groups.every(isGroup));
+  if (!groups) {
     const quoted = answer.trim().replace(/\s+/g, ' ');
     throw new AtlasError(`The model's answer is not a skill map: ${quoted.length > 200 ? `${quoted.slice(0, 200)}…` : quoted || '(empty)'}`);
   }
-  const left = new Set(skills.map((skill) => skill.name));
+  const left = new Set(skills.keys());
   const byName = new Map<string, string[]>();
   for (const group of groups) {
     const name = group.name.trim().toLowerCase() || OTHER;
-    const members = group.skills.filter((skill) => left.delete(skill));
-    byName.set(name, [...(byName.get(name) ?? []), ...members]);
+    const members = [...left].filter((index) => group.skills.includes(skills[index].name));
+    for (const index of members) left.delete(index);
+    byName.set(name, [...(byName.get(name) ?? []), ...members.map((index) => skills[index].name)]);
   }
-  if (left.size > 0) byName.set(OTHER, [...(byName.get(OTHER) ?? []), ...left]);
+  if (left.size > 0) byName.set(OTHER, [...(byName.get(OTHER) ?? []), ...[...left].map((index) => skills[index].name)]);
   return sortMap([...byName].filter(([, members]) => members.length > 0).map(([name, members]) => ({ name, skills: members })));
+}
+
+/** Every JSON object in the text, outermost ones, in order: the words around them can have braces of their own. */
+function jsonObjects(text: string): unknown[] {
+  const objects: unknown[] = [];
+  for (let start = text.indexOf('{'); start !== -1; start = text.indexOf('{', start + 1)) {
+    const end = closingBrace(text, start);
+    if (end === -1) continue;
+    try {
+      objects.push(JSON.parse(text.slice(start, end + 1)));
+      start = end;
+    } catch {
+      // Not JSON from this brace: try the next one.
+    }
+  }
+  return objects;
+}
+
+/** The index of the brace that closes the one at `start`, strings skipped; -1 if none does. */
+function closingBrace(text: string, start: number): number {
+  let depth = 0;
+  for (let index = start, string = false; index < text.length; index++) {
+    const char = text[index];
+    if (string) {
+      if (char === '\\') index++;
+      else if (char === '"') string = false;
+    } else if (char === '"') string = true;
+    else if (char === '{') depth++;
+    else if (char === '}' && --depth === 0) return index;
+  }
+  return -1;
 }
 
 function isGroup(group: unknown): group is SkillGroup {

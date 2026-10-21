@@ -2,6 +2,9 @@
 // in place of claude -p: the model is never called.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { createBrowserBackend } from '../src/browser.ts';
@@ -11,11 +14,13 @@ import { replayModel } from '../src/core/replay.ts';
 import type { Source } from '../src/core/scan.ts';
 import { CLI, EXAMPLE_COMMIT, FIXTURE } from './helpers.ts';
 
-type Fake = { name: string; description?: string };
+type Fake = { name: string; description?: string; directory?: string };
 
-/** A repository with these skills, each in `.claude/skills/<name>`. */
+/** A repository with these skills, each in `.claude/skills/<directory>`, the name by default. */
 function source(skills: Fake[]): Source {
-  const files = new Map(skills.map(({ name, description = '' }) => [`.claude/skills/${name}/SKILL.md`, `---\nname: ${name}\ndescription: ${description}\n---\n`]));
+  const files = new Map(
+    skills.map(({ name, description = '', directory = name }) => [`.claude/skills/${directory}/SKILL.md`, `---\nname: ${name}\ndescription: ${description}\n---\n`]),
+  );
   const repository = { id: 'JetBrains/example', organization: 'JetBrains', name: 'example', url: 'https://github.com/JetBrains/example', commit: EXAMPLE_COMMIT };
   const read = async (path: string) => (files.has(path) ? new TextEncoder().encode(files.get(path)) : undefined);
   return { repository, paths: [...files.keys()], warnings: [], read };
@@ -90,6 +95,24 @@ test('map: a word in more than half of four or more skills is skipped', async ()
   assert.deepEqual(groups(mapped.stdout), { build: ['mps-build', 'teamcity-build'], editor: ['mps-editor', 'mps-editor-menus'], other: ['mps-tests'] });
 });
 
+test('map: a stopword is left out as it is written and once folded; a word that is not a plural keeps its s', async () => {
+  const mapped = await map([
+    { name: 'alpha', description: 'This formats Kotlin and covers it.' },
+    { name: 'beta', description: 'This lints Java and covers it.' },
+    { name: 'code-analysis' },
+    { name: 'data-analysis' },
+  ]);
+  assert.deepEqual(groups(mapped.stdout), { analysis: ['code-analysis', 'data-analysis'], other: ['alpha', 'beta'] });
+});
+
+test('map: two skills with the same name, in two directories → both in the map', async () => {
+  const skills = [{ name: 'deploy', directory: 'deploy-app' }, { name: 'deploy', directory: 'deploy-lib' }, { name: 'lint' }];
+  const mapped = await map(skills);
+  assert.equal(mapped.stdout, ['JetBrains/example · 3 skills in 2 groups', 'deploy · 2 skills', '  deploy', '  deploy', 'other · 1 skill', '  lint'].join('\n'));
+  const answered = await map(skills, { ai: true, answer: answer({ release: ['deploy'] }) });
+  assert.equal(answered.stdout, ['JetBrains/example · 3 skills in 2 groups', 'release · 2 skills', '  deploy', '  deploy', 'other · 1 skill', '  lint'].join('\n'));
+});
+
 test('map: a skill that shares no word → `other`', async () => {
   const mapped = await map([{ name: 'commits' }, { name: 'registry' }]);
   assert.equal(mapped.stdout, ['JetBrains/example · 2 skills in 1 group', 'other · 2 skills', '  commits', '  registry'].join('\n'));
@@ -125,6 +148,15 @@ test('map --ai: a made-up name is left out, a skill in two groups stays in the f
   assert.deepEqual(groups(mapped.stdout), { first: ['a-skill'], second: ['b-skill'], other: ['c-skill'] });
 });
 
+test('map --ai: braces in the words around the JSON → the JSON is still found', async () => {
+  const json = answer({ x: ['a-skill', 'b-skill'] });
+  for (const text of [`Groups for {repo}:\n\`\`\`json\n${json}\n\`\`\`\nI can split {x} further.`, `{not json} ${json} {"other": 1}`, `{ "unclosed\n${json}`]) {
+    const mapped = await map([{ name: 'a-skill' }, { name: 'b-skill' }], { ai: true, answer: text });
+    assert.equal(mapped.code, 0, `${text}\n${mapped.stderr}`);
+    assert.deepEqual(groups(mapped.stdout), { x: ['a-skill', 'b-skill'] });
+  }
+});
+
 test('map --ai: an answer that is not a skill map → a clear message, exit code 1', async () => {
   const mapped = await map([{ name: 'commits' }], { ai: true, answer: 'Sorry, I cannot help with that.' });
   assert.equal(mapped.code, 1);
@@ -147,6 +179,16 @@ test('map --ai: claude fails → its message and exit code, exit code 1', () => 
   const mapped = spawnSync(process.execPath, [CLI, 'map', FIXTURE, '--ai'], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
   assert.equal(mapped.status, 1);
   assert.match(mapped.stderr, /^claude -p failed, exit code 1: not recorded: Group the agent skills of the repository fixture /m);
+});
+
+test('map --ai: claude killed by a signal → which signal, exit code 1', (t) => {
+  const bin = mkdtempSync(join(tmpdir(), 'skill-atlas-claude-'));
+  t.after(() => rmSync(bin, { recursive: true, force: true }));
+  writeFileSync(join(bin, 'claude'), '#!/bin/sh\nkill -9 $$\n');
+  chmodSync(join(bin, 'claude'), 0o755);
+  const mapped = spawnSync(process.execPath, [CLI, 'map', FIXTURE, '--ai'], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
+  assert.equal(mapped.status, 1);
+  assert.equal(mapped.stderr.split('\n').filter((line) => !line.startsWith('warning: ')).join('\n'), 'claude -p failed, killed by SIGKILL\n');
 });
 
 test('map: an organization → a clear message, exit code 1; a wrong command line → the usage', async () => {

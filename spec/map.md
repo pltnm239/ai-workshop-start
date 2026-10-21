@@ -16,7 +16,7 @@ other · 2 skills
 - The groups: the most skills first, then by name; `other` last. In a group, the skills by name
 - Warnings go to *stderr*, as in `scan`
 ## Without AI
-- A skill's **words**: lower case, plurals folded (`checks` → `check`), no words that say nothing (`use`, `when`, `skill`, …), none under three letters
+- A skill's **words**: lower case, plurals folded (`checks` → `check`, not `analysis`), no words that say nothing (`use`, `when`, `skill`, …), none under three letters
 - Again and again, the word the **most ungrouped skills** share, at least two, makes a group, named after the word; a tie goes to the first in alphabetical order
 - The words of the **names** first; then the words of the descriptions' *first sentences*
 - A word in more than half of four or more skills is **skipped**: `mps` in JetBrains/MPS tells nothing apart
@@ -36,5 +36,8 @@ other · 2 skills
 | An answer that is not such JSON | `The model's answer is not a skill map: <answer>`, exit code 1 |
 | `claude` not installed | `Grouping with a model needs Claude Code: claude is not on the PATH`, exit code 1 |
 | `claude` fails | `claude -p failed, exit code <n>: <its message>`, exit code 1 |
+| `claude` killed | `claude -p failed, killed by <signal>`, exit code 1 |
+| Two skills with the same name, in two directories | both in the map |
+| An answer with braces in the words around its JSON | the JSON is found |
 | An organization | `A map is of one repository's skills, not of an organization: <input>`, exit code 1 |
 | `--ai` in the browser terminal | a message: run it from the command line |
