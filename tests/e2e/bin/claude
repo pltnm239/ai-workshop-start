@@ -1,0 +1,3 @@
+#!/bin/sh
+# A stand-in for Claude Code on the tests' PATH: it answers from tests/e2e/*.model.json, never the model.
+exec node "$(dirname "$0")/claude.ts" "$@"

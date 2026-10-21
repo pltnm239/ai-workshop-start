@@ -9,7 +9,7 @@ Every **project skill**: **name**, **description**, **link**
 For an organization: how many public **repositories** it has, and each repository with project skills, with **how many**; the most skills first, then by name
 
 ## Architecture
-Core: fetch → find → parse. CLI and [web view](web.md): *thin clients*.
+Core: fetch → find → parse; the [skill map](map.md) groups the result. CLI and [web view](web.md): *thin clients*.
 Skill: id = `repo:path`, name, description, commit, the SKILL.md content
 
 ## Details

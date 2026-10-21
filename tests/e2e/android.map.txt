@@ -1,0 +1,10 @@
+JetBrains/android · 6 skills in 3 groups
+android · 2 skills
+  android-studio-development
+  android-studio-diagnostics-analysis
+jewel · 2 skills
+  jewel-swing-interop
+  jewel-ui
+other · 2 skills
+  write-evals
+  writing-lint-checks

@@ -12,6 +12,7 @@
   },
   "scripts": {
     "test": "node --test tests/*.test.ts",
+    "e2e": "node --test tests/e2e.test.ts",
     "typecheck": "tsc --noEmit",
     "test:ui": "playwright test",
     "test:ui:docker": "docker run --rm --platform linux/amd64 --ipc=host -v \"$PWD\":/work -v /work/node_modules -w /work mcr.microsoft.com/playwright:v1.64.1-noble sh -c 'npm ci && npx playwright test'",
