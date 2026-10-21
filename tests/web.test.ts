@@ -519,6 +519,34 @@ test('filter on the page: back to the start page → no filter, and nothing brea
   assert.deepEqual(page.errors, []);
 });
 
+test('the address on the page: the repository scanned, not the text typed in the field since', async (t) => {
+  const page = await openPage(`/?repo=${encodeURIComponent(FIXTURE)}`);
+  t.after(page.close);
+  const field = page.$('#repo') as HTMLInputElement;
+  field.value = 'github.com/JetBrains/koog';
+  field.dispatchEvent(new page.window.Event('input'));
+  [...page.document.querySelectorAll<HTMLElement>('[role="option"]')].find((button) => button.querySelector('.skill-title')!.textContent === 'commits')!.click();
+  assert.equal(page.selected(), 'commits');
+  const address = new URL(page.window.location.href);
+  assert.equal(address.searchParams.get('repo'), FIXTURE);
+  assert.equal(address.hash, '#commits');
+  assert.equal(field.value, 'github.com/JetBrains/koog');
+
+  // Reload: the same scan and the same skill.
+  const again = await openPage(address.pathname + address.search + address.hash);
+  t.after(again.close);
+  assert.equal((again.$('#repo') as HTMLInputElement).value, FIXTURE);
+  assert.equal(again.selected(), 'commits');
+  assert.deepEqual(again.asked.filter((url) => url.startsWith('/api/scan')), [`/api/scan?repo=${encodeURIComponent(FIXTURE)}`]);
+
+  // Back to the skill before, the text still in the field: the scan on screen, not scanned again.
+  page.window.history.back();
+  await page.until(() => page.selected() === 'code-style');
+  assert.equal(page.$('h1').textContent, 'code-style');
+  assert.deepEqual(page.asked.filter((url) => url.startsWith('/api/scan')), [`/api/scan?repo=${encodeURIComponent(FIXTURE)}`]);
+  assert.deepEqual(page.errors, []);
+});
+
 /** The page's field, typed into a letter at a time, `pause` milliseconds apart. */
 async function typeRepository(page: Awaited<ReturnType<typeof openPage>>, text: string, from = '', pause = 0) {
   const input = page.$('#repo') as HTMLInputElement;

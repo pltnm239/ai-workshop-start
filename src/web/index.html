@@ -357,6 +357,8 @@
   const form = $('#scan'), input = $('#repo'), go = $('#go'), list = $('#skills'), view = $('#view');
   const filter = $('#filter');
   let result = null, selected = null, mode = 'preview', request = 0;
+  // The input the result on screen was scanned from: the field may hold text typed since, never scanned.
+  let scanned = null;
   /** The list rows of the scanned skills, by id: built once per scan, then filtered in place. */
   let rows = new Map();
 
@@ -423,12 +425,15 @@
     if (again && ownerScans.has(repo)) {
       ++request;
       result = ownerScans.get(repo);
+      scanned = repo;
       for (const part of ['#error', '#filter-box']) $(part).hidden = true;
       go.disabled = false;
       go.replaceChildren('Scan');
       return showOwner();
     }
     const id = ++request;
+    // Nothing scanned on screen until this answers: Back meanwhile scans again.
+    scanned = null;
     go.disabled = true;
     go.replaceChildren(h('span', { class: 'spinner' }), 'Scanning');
     $('#error').hidden = true;
@@ -443,6 +448,7 @@
       if (id !== request) return;
       if (!response.ok) throw new Error(body.error ?? `The server answered ${response.status}`);
       result = body;
+      scanned = repo;
       filter.value = '';
       if (result.owner) { ownerScans.set(repo, result); return showOwner(); }
       showRepository();
@@ -454,6 +460,7 @@
     } catch (error) {
       if (id !== request) return;
       result = null;
+      scanned = null;
       list.replaceChildren();
       $('#error').hidden = false;
       $('#error').replaceChildren(h('strong', {}, 'Cannot scan. '), error.message);
@@ -570,7 +577,7 @@
     for (const button of list.querySelectorAll('button[role="option"]')) button.setAttribute('aria-selected', String(button.dataset.id === skill.id));
     list.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'nearest' });
     const url = new URL(location.href);
-    url.searchParams.set('repo', input.value.trim());
+    url.searchParams.set('repo', scanned);
     url.hash = encodeURIComponent(skill.name);
     history[push ? 'pushState' : 'replaceState'](null, '', url);
     renderSkill();
@@ -670,11 +677,11 @@
     const repo = new URL(location.href).searchParams.get('repo');
     const name = decodeURIComponent(location.hash.slice(1));
     if (!repo) {
-      input.value = ''; showCount(); result = null; list.replaceChildren();
+      input.value = ''; showCount(); result = scanned = null; list.replaceChildren();
       for (const part of ['#repo-card', '#filter-box', '#warnings', '#error']) $(part).hidden = true;
       return welcome();
     }
-    if (result && repo === input.value.trim()) {
+    if (result && repo === scanned) {
       const skill = result.skills?.find((s) => s.name === name);
       if (skill) {
         // Back to a skill the filter leaves out: show it in the list again.
