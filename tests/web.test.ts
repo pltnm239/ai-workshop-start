@@ -506,6 +506,38 @@ test('filter on the page: back to the start page → no filter, and nothing brea
   assert.deepEqual(page.errors, []);
 });
 
+test('back to the start page while a scan is running → the scan dropped, the start page and its address stay', async (t) => {
+  const page = await openPage('/');
+  t.after(page.close);
+  // The scan waits until Back has run.
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => (release = resolve));
+  const fetch = page.window.fetch;
+  page.window.fetch = (async (url: string, init?: RequestInit) => {
+    if (url.startsWith('/api/scan')) await held;
+    return fetch(url, init);
+  }) as typeof fetch;
+  const input = page.$('#repo') as HTMLInputElement;
+  input.value = FIXTURE;
+  (page.$('#scan') as HTMLFormElement).requestSubmit();
+  assert.equal(page.$('#go').textContent, 'Scanning');
+
+  page.window.history.back();
+  await page.until(() => page.window.location.search === '');
+  release();
+  await page.until(() => page.asked.some((url) => url.startsWith('/api/scan')));
+  await new Promise((resolve) => setTimeout(resolve, 200));
+
+  assert.equal(page.window.location.pathname + page.window.location.search + page.window.location.hash, '/');
+  assert.equal(input.value, '');
+  assert.ok(page.document.querySelector('.placeholder'));
+  assert.equal(page.document.querySelectorAll('#skills li').length, 0);
+  assert.equal(page.$('#repo-card').hidden, true);
+  assert.equal(page.$('#go').textContent, 'Scan');
+  assert.equal((page.$('#go') as HTMLButtonElement).disabled, false);
+  assert.deepEqual(page.errors, []);
+});
+
 /** The page's field, typed into a letter at a time, `pause` milliseconds apart. */
 async function typeRepository(page: Awaited<ReturnType<typeof openPage>>, text: string, from = '', pause = 0) {
   const input = page.$('#repo') as HTMLInputElement;
