@@ -7,7 +7,7 @@ description: Take a GitHub issue to a merged pull request. Implement it with tes
 Work in the repository the issue is in. If it is a fork, never touch the original repository.
 
 ## Steps
-1. **Read the issue** with its comments. The issue leaves a decision open and the issue, the spec and the code do not settle it? Ask in the Slack channel `C0CAX34PFPC`: short numbered questions, each with the link to the issue. Tell the issue: questions asked in Slack. Write no code yet. **Wait** for the answer: look in the thread every few minutes, for up to one hour. Answered: go on and follow the answer. No answer in the hour: stop and tell the issue that the work waits for one.
+1. **Read the issue** with its comments. The issue leaves a decision open and the issue, the spec and the code do not settle it? Ask in the Slack channel `C0CAX34PFPC`, with the bot token in `SLACK_BOT_TOKEN`: short numbered questions, each with the link to the issue. Tell the issue: questions asked in Slack. Write no code yet. **Wait** for the answer: look in the thread every few minutes, for up to one hour. Answered: go on and follow the answer. No answer in the hour: stop and tell the issue that the work waits for one. No token, or Slack fails? Ask the same questions on the issue, mention its author, and stop. Never decide the open points alone, and never reuse questions already asked and not answered: a run that finds them stops again.
 2. **Read** `AGENTS.md` and `spec/`. Update the spec together with the code.
 3. **Branch** from an up to date `main`, named after the issue. Tell the issue: the branch.
 4. **Implement** the issue. Add integration tests for every case it adds to the spec.
