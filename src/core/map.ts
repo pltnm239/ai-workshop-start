@@ -29,9 +29,12 @@ export function words(text: string): Set<string> {
   return new Set(all.filter((word) => word.length > 2 && !/^\d+$/.test(word) && !STOPWORDS.has(word)));
 }
 
-/** `checks` → `check`, `classes` → `class`, `libraries` → `library`; not `analysis`, `status` or `access`. */
+/**
+ * `checks` → `check`, `classes` → `class`, `libraries` → `library`, `menus` → `menu`, `apis` → `api`;
+ * not the singulars `analysis`, `axis`, `various`, `status`, `focus` or `access`.
+ */
 function singular(word: string): string {
-  if (word.length <= 3 || !word.endsWith('s') || /(?:ss|is|us)$/.test(word)) return word;
+  if (word.length <= 3 || !word.endsWith('s') || /(?:ss|sis|xis|ous|[bclprst]us)$/.test(word)) return word;
   if (word.endsWith('ies')) return `${word.slice(0, -3)}y`;
   if (/(?:ss|sh|ch|x)es$/.test(word)) return word.slice(0, -2);
   return word.slice(0, -1);

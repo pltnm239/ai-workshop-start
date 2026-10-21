@@ -105,6 +105,25 @@ test('map: a stopword is left out as it is written and once folded; a word that 
   assert.deepEqual(groups(mapped.stdout), { analysis: ['code-analysis', 'data-analysis'], other: ['alpha', 'beta'] });
 });
 
+test('map: plurals fold, singulars that end in s do not', async () => {
+  const mapped = await map([
+    { name: 'context-menu' },
+    { name: 'editor-menus' },
+    { name: 'api-client' },
+    { name: 'rest-apis' },
+    { name: 'build-status' },
+    { name: 'sync-status' },
+    { name: 'lint-classes' },
+    { name: 'class-loader' },
+  ]);
+  assert.deepEqual(groups(mapped.stdout), {
+    api: ['api-client', 'rest-apis'],
+    class: ['class-loader', 'lint-classes'],
+    menu: ['context-menu', 'editor-menus'],
+    status: ['build-status', 'sync-status'],
+  });
+});
+
 test('map: two skills with the same name, in two directories → both in the map', async () => {
   const skills = [{ name: 'deploy', directory: 'deploy-app' }, { name: 'deploy', directory: 'deploy-lib' }, { name: 'lint' }];
   const mapped = await map(skills);
