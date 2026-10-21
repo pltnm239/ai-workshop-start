@@ -669,7 +669,11 @@
     const repo = new URL(location.href).searchParams.get('repo');
     const name = decodeURIComponent(location.hash.slice(1));
     if (!repo) {
-      input.value = ''; showCount(); result = null; list.replaceChildren();
+      // A scan still running is dropped: its result is not for the start page.
+      ++request;
+      go.disabled = false;
+      go.replaceChildren('Scan');
+      input.value = ''; showCount(); result = null; selected = null; list.replaceChildren();
       for (const part of ['#repo-card', '#filter-box', '#warnings', '#error']) $(part).hidden = true;
       return welcome();
     }
