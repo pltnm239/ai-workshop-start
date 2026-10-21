@@ -7,7 +7,7 @@ description: Take a GitHub issue to a merged pull request. Implement it with tes
 Work in the repository the issue is in. If it is a fork, never touch the original repository.
 
 ## Steps
-1. **Read the issue** with its comments. If it is ambiguous, ask before writing code.
+1. **Read the issue** with its comments. Something is unclear and the issue, the spec and the code do not answer it? Ask in the Slack channel `C0CAX34PFPC`: short numbered questions, each with the link to the issue. Tell the issue: questions asked in Slack. Write no code until they are answered. No answer: stop and tell the issue that the work waits for one.
 2. **Read** `AGENTS.md` and `spec/`. Update the spec together with the code.
 3. **Branch** from an up to date `main`, named after the issue. Tell the issue: the branch.
 4. **Implement** the issue. Add integration tests for every case it adds to the spec.
