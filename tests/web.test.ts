@@ -463,7 +463,7 @@ test('filter on the page: Enter or ↓ selects the first match; Escape clears', 
     page.type('messages');
     page.key(key);
     assert.equal(page.selected(), 'commits', key);
-    assert.equal(page.window.location.hash, '#commits', key);
+    assert.equal(page.window.location.hash, '#.claude/skills/commits/SKILL.md', key);
     assert.equal(page.$('h1').textContent, 'commits', key);
     // The same match again is not another step back.
     const steps = page.window.history.length;
@@ -507,6 +507,69 @@ test('filter on the page: back to a skill the filter leaves out → the filter c
   assert.equal(page.shown().length, 3);
 });
 
+/** A directory with two skills named `review`: `alpha`, then `beta`. */
+function sameName(t: { after: (fn: () => void) => void }) {
+  const directory = mkdtempSync(join(tmpdir(), 'skill-atlas-same-name-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  for (const [folder, description] of [['alpha', 'First one.'], ['beta', 'Second one.']]) {
+    mkdirSync(join(directory, '.agents/skills', folder), { recursive: true });
+    writeFileSync(join(directory, '.agents/skills', folder, 'SKILL.md'), `---\nname: review\ndescription: ${description}\n---\n${folder} body\n`);
+  }
+  return directory;
+}
+
+test('the address on the page: the skill by its path; reload shows the same', async (t) => {
+  const repo = `/?repo=${encodeURIComponent(FIXTURE)}`;
+  const page = await openPage(repo);
+  t.after(page.close);
+  page.type('messages');
+  page.key('Enter');
+  assert.equal(page.window.location.hash, '#.claude/skills/commits/SKILL.md');
+  const reloaded = await openPage(page.window.location.pathname + page.window.location.search + page.window.location.hash);
+  t.after(reloaded.close);
+  assert.equal(reloaded.selected(), 'commits');
+  assert.equal(reloaded.$('h1').textContent, 'commits');
+});
+
+test('the address on the page: two skills with the same name, each its own address; reload, Back and Forward show the one selected', async (t) => {
+  const directory = sameName(t);
+  const page = await openPage(`/?repo=${encodeURIComponent(directory)}`);
+  t.after(page.close);
+  const options = () => [...page.document.querySelectorAll('#skills button[role="option"]')] as HTMLElement[];
+  const body = () => page.$('.markdown').textContent;
+  assert.deepEqual(options().map((option) => option.querySelector('.skill-title')!.textContent), ['review', 'review']);
+  assert.equal(body(), 'alpha body');
+  assert.equal(page.window.location.hash, '#.agents/skills/alpha/SKILL.md');
+
+  options()[1].click();
+  assert.equal(body(), 'beta body');
+  assert.equal(page.window.location.hash, '#.agents/skills/beta/SKILL.md');
+  const address = page.window.location.pathname + page.window.location.search + page.window.location.hash;
+
+  const reloaded = await openPage(address);
+  t.after(reloaded.close);
+  assert.equal(reloaded.$('.markdown').textContent, 'beta body');
+  assert.equal(reloaded.$('.doc-meta .chip').textContent, '.agents/skills/beta/SKILL.md');
+  assert.equal(reloaded.document.querySelector('[role="option"][aria-selected="true"]')?.getAttribute('data-id'), options()[1].dataset.id);
+
+  options()[0].click();
+  assert.equal(body(), 'alpha body');
+  page.window.history.back();
+  await page.until(() => body() === 'beta body');
+  assert.equal(page.window.location.hash, '#.agents/skills/beta/SKILL.md');
+  page.window.history.forward();
+  await page.until(() => body() === 'alpha body');
+  assert.deepEqual(page.errors, []);
+});
+
+test('the address on the page: a skill by its name, from before paths, still opens', async (t) => {
+  const page = await openPage(`/?repo=${encodeURIComponent(FIXTURE)}#commits`);
+  t.after(page.close);
+  assert.equal(page.selected(), 'commits');
+  assert.equal(page.$('h1').textContent, 'commits');
+  assert.equal(page.window.location.hash, '#.claude/skills/commits/SKILL.md');
+});
+
 test('filter on the page: back to the start page → no filter, and nothing breaks', async (t) => {
   const page = await openPage(`/?repo=${encodeURIComponent(FIXTURE)}`);
   t.after(page.close);
@@ -529,7 +592,7 @@ test('the address on the page: the repository scanned, not the text typed in the
   assert.equal(page.selected(), 'commits');
   const address = new URL(page.window.location.href);
   assert.equal(address.searchParams.get('repo'), FIXTURE);
-  assert.equal(address.hash, '#commits');
+  assert.equal(address.hash, '#.claude/skills/commits/SKILL.md');
   assert.equal(field.value, 'github.com/JetBrains/koog');
 
   // Reload: the same scan and the same skill.

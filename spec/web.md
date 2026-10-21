@@ -10,7 +10,7 @@ Same input and core as the CLI; *nothing is stored*. Listens on `127.0.0.1` only
 - The selected skill: name, description, path, `also in` copies, the other front matter keys, a link to the SKILL.md
 - Its **SKILL.md**: the body rendered as Markdown, or the source as it is
 - Warnings and errors, as in the CLI, shown on the page
-- The address keeps the repository and the skill: `/?repo=<input>#<skill>`; reload shows the same. The repository is the one *scanned* on screen, not text typed in the field since without Enter
+- The address keeps the repository and the skill: `/?repo=<input>#<path>`, the skill's path, `#.claude/skills/debugging/SKILL.md`; reload, Back and Forward show the same. An address with the skill's name, `#debugging`, still opens it. The repository is the one *scanned* on screen, not text typed in the field since without Enter
 - JetBrains Air style: dark, gradient accent, Inter and JetBrains Mono
 - A **help button**, `?`, fixed at the bottom right of every screen; it opens the help; see [Help](#help)
 ## Help
@@ -43,9 +43,10 @@ Same input and core as the CLI; *nothing is stored*. Listens on `127.0.0.1` only
 | A repository without project skills | `0 skills`, *No project skills here*; no filter, no `No skills match` |
 | A query with regular expression characters, `c++` or `(x` | matched as text |
 | A match only after the first sentence | the line around it, highlighted |
+| Two skills with the same name | each its own address, by its path; reload shows the one selected |
 ## UI tests
-Playwright, `tests/ui/*.spec.ts`, on a fixed server (`tests/ui/server.ts`): a recorded repository, one without skills and a recorded organization, no live GitHub, any other request is blocked.
-- **Covered**: the start page, a scan and the first skill, Preview and Source, `also in` copies, HTML shown as text, the malformed front matter warning, the filter and Escape, no match, a repository without skills, an unreachable repository, an organization with `+N more`, the address on reload, even with unscanned text in the field, the help and how it closes
+Playwright, `tests/ui/*.spec.ts`, on a fixed server (`tests/ui/server.ts`): three recorded repositories, the second with two skills of the same name, the third without skills, and a recorded organization, no live GitHub, any other request is blocked.
+- **Covered**: the start page, a scan and the first skill, Preview and Source, `also in` copies, HTML shown as text, the malformed front matter warning, the filter and Escape, no match, a repository without skills, an unreachable repository, an organization with `+N more`, the address on reload, even with unscanned text in the field, two skills with the same name on reload and Back, the help and how it closes
 - **Screenshots**: every screen above is compared with `tests/ui/__screenshots__/`. **A changed pixel fails the check**: no tolerance
 - **Deterministic**: shadows and backdrop blur are off in screenshots (a blur is not drawn identically on each run), fixed viewport 1280×720, scale 1, locale, time zone, dark scheme, reduced motion, animations off, one worker
 - **Every run is recorded**: a video and a trace per test, an HTML report

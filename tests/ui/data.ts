@@ -38,24 +38,32 @@ const FILES: Record<string, string> = {
   'src/not-a-skill/SKILL.md': skill('not-a-skill', 'Outside every skill root.', '# Ignored\n'),
 };
 
+/** Two skills with the same name, in two directories. */
+export const SAME_NAME_URL = 'https://github.com/JetBrains/atlas-same-name';
+
+const SAME_NAME_FILES: Record<string, string> = {
+  '.agents/skills/alpha/SKILL.md': skill('review', 'First one.', 'Alpha body\n'),
+  '.agents/skills/beta/SKILL.md': skill('review', 'Second one.', 'Beta body\n'),
+};
+
 export const EMPTY_URL = 'https://github.com/JetBrains/no-skills';
 
+const REPOSITORIES = [
+  { url: DEMO_URL, name: 'atlas-demo', files: FILES },
+  { url: SAME_NAME_URL, name: 'atlas-same-name', files: SAME_NAME_FILES },
+  // Files, none of them a skill.
+  { url: EMPTY_URL, name: 'no-skills', files: { 'README.md': '# No skills\n' } },
+];
+
 export async function open(input: string): Promise<Source> {
-  if (input.replace(/^https?:\/\//, '') === EMPTY_URL.replace(/^https?:\/\//, '')) {
-    return {
-      repository: { id: 'JetBrains/no-skills', organization: 'JetBrains', name: 'no-skills', url: EMPTY_URL, commit: DEMO_COMMIT },
-      paths: ['README.md'],
-      warnings: [],
-      read: async () => undefined,
-    };
-  }
-  if (input.replace(/^https?:\/\//, '') !== DEMO_URL.replace(/^https?:\/\//, '')) {
-    throw new AtlasError(`Repository not found: ${input}`);
-  }
+  const bare = (url: string) => url.replace(/^https?:\/\//, '');
+  const found = REPOSITORIES.find((repository) => bare(repository.url) === bare(input));
+  if (!found) throw new AtlasError(`Repository not found: ${input}`);
+  const { url, name, files } = found;
   return {
-    repository: { id: 'JetBrains/atlas-demo', organization: 'JetBrains', name: 'atlas-demo', url: DEMO_URL, commit: DEMO_COMMIT },
-    paths: Object.keys(FILES),
+    repository: { id: `JetBrains/${name}`, organization: 'JetBrains', name, url, commit: DEMO_COMMIT },
+    paths: Object.keys(files),
     warnings: [],
-    read: async (path) => (path in FILES ? new TextEncoder().encode(FILES[path]) : undefined),
+    read: async (path) => (path in files ? new TextEncoder().encode(files[path]) : undefined),
   };
 }
