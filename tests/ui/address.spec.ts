@@ -27,3 +27,14 @@ test('two skills with the same name: each its own address; reload and Back show 
   await expect(page.locator('.markdown')).toHaveText('Beta body');
   await expect(options.nth(1)).toHaveAttribute('aria-selected', 'true');
 });
+
+test('the address keeps the repository scanned, not the text typed in the field since', async ({ page }) => {
+  await scanned(page, DEMO_URL);
+  await page.locator('#repo').fill('github.com/JetBrains/koog');
+  await page.locator('#skills button[role="option"]', { hasText: 'commits' }).click();
+  await expect(page).toHaveURL(`/?repo=${encodeURIComponent(DEMO_URL)}#.agents/skills/commits/SKILL.md`);
+  await page.reload();
+  await expect(page.locator('#repo')).toHaveValue(DEMO_URL);
+  await expect(page.locator('.doc-head h1')).toHaveText('commits');
+  await expect(page.locator('#error')).toBeHidden();
+});
