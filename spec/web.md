@@ -10,7 +10,7 @@ Same input and core as the CLI; *nothing is stored*. Listens on `127.0.0.1` only
 - The selected skill: name, description, path, `also in` copies, the other front matter keys, a link to the SKILL.md
 - Its **SKILL.md**: the body rendered as Markdown, or the source as it is
 - Warnings and errors, as in the CLI, shown on the page
-- The address keeps the repository and the skill: `/?repo=<input>#<skill>`; reload shows the same
+- The address keeps the repository and the skill: `/?repo=<input>#<skill>`; reload shows the same. The repository is the one *scanned* on screen, not text typed in the field since without Enter
 - JetBrains Air style: dark, gradient accent, Inter and JetBrains Mono
 - A **help button**, `?`, fixed at the bottom right of every screen; it opens the help; see [Help](#help)
 ## Help
@@ -44,7 +44,7 @@ Same input and core as the CLI; *nothing is stored*. Listens on `127.0.0.1` only
 | A match only after the first sentence | the line around it, highlighted |
 ## UI tests
 Playwright, `tests/ui/*.spec.ts`, on a fixed server (`tests/ui/server.ts`): a recorded repository and a recorded organization, no live GitHub, any other request is blocked.
-- **Covered**: the start page, a scan and the first skill, Preview and Source, `also in` copies, HTML shown as text, the malformed front matter warning, the filter and Escape, no match, an unreachable repository, an organization with `+N more`, the address on reload, the help and how it closes
+- **Covered**: the start page, a scan and the first skill, Preview and Source, `also in` copies, HTML shown as text, the malformed front matter warning, the filter and Escape, no match, an unreachable repository, an organization with `+N more`, the address on reload, even with unscanned text in the field, the help and how it closes
 - **Screenshots**: every screen above is compared with `tests/ui/__screenshots__/`. **A changed pixel fails the check**: no tolerance
 - **Deterministic**: shadows and backdrop blur are off in screenshots (a blur is not drawn identically on each run), fixed viewport 1280×720, scale 1, locale, time zone, dark scheme, reduced motion, animations off, one worker
 - **Every run is recorded**: a video and a trace per test, an HTML report
