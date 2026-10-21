@@ -442,6 +442,19 @@ test('filter on the page: a query that matches nothing → No skills match', asy
   assert.equal(page.$('#filter-count').textContent, '0 of 3');
 });
 
+test('a repository without project skills on the page: 0 skills and No project skills here, no filter, no No skills match', async (t) => {
+  const directory = mkdtempSync(join(tmpdir(), 'skill-atlas-none-'));
+  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  const page = await openPage(`/?repo=${encodeURIComponent(directory)}`);
+  t.after(page.close);
+  assert.equal(page.$('#repo-card .chip.accent').textContent, '0 skills');
+  assert.equal(page.document.querySelector('.placeholder h2')!.textContent, 'No project skills here');
+  assert.equal(page.$('#filter-box').hidden, true);
+  assert.equal(page.$('#no-match').hidden, true);
+  assert.equal(page.$('#filter-count').textContent, '');
+  assert.deepEqual(page.errors, []);
+});
+
 test('filter on the page: Enter or ↓ selects the first match; Escape clears', async (t) => {
   for (const key of ['Enter', 'ArrowDown']) {
     const page = await openPage(`/?repo=${encodeURIComponent(FIXTURE)}`);

@@ -555,7 +555,8 @@
         row.marks[field] = marks;
       }
     }
-    $('#no-match').hidden = count > 0;
+    // No query, no match to miss: a repository without skills says so in the view instead.
+    $('#no-match').hidden = count > 0 || !query.trim();
     $('#filter-count').textContent = query.trim() ? `${count} of ${result.skills.length}` : '';
   }
 
