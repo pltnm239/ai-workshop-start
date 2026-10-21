@@ -1,0 +1,50 @@
+JetBrains/MPS · 42 skills in 7 groups
+language aspects · 15 skills
+  mps-aspect-accessories
+  mps-aspect-actions
+  mps-aspect-behavior
+  mps-aspect-constraints
+  mps-aspect-dataflow
+  mps-aspect-editor
+  mps-aspect-editor-menus-and-keymaps
+  mps-aspect-generation-plan
+  mps-aspect-generator
+  mps-aspect-intentions
+  mps-aspect-migrations
+  mps-aspect-structure-concepts
+  mps-aspect-textgen
+  mps-aspect-typesystem
+  mps-language-aspects-overview
+model code · 7 skills
+  mps-baselanguage
+  mps-collections-and-closures
+  mps-console
+  mps-lang-core-xml
+  mps-model-manipulation
+  mps-node-editing
+  mps-quotations
+build and test · 5 skills
+  mps-build-language
+  mps-distribution-build
+  mps-run-configurations
+  mps-tests
+  teamcity-cli
+intellij platform · 5 skills
+  actions
+  code-style
+  debugging
+  registry
+  ssr
+language design · 4 skills
+  mps-dsl-memory
+  mps-language-analysis
+  mps-language-inheritance
+  mps-language-modularity
+mps tooling · 4 skills
+  mps-ide-plugin
+  mps-mcp-workflow
+  mps-project-management
+  skill-optimization-study
+workflow · 2 skills
+  bugfix-workflow
+  commits

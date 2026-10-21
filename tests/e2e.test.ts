@@ -5,6 +5,9 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { CLI } from './helpers.ts';
 
+/** The PATH with the stand-in for claude first: it replays tests/e2e/*.model.json, the model is never called. */
+const REPLAYED_CLAUDE = { ...process.env, PATH: `${fileURLToPath(new URL('e2e/bin', import.meta.url))}:${process.env.PATH}` };
+
 const COMMITS = {
   MPS: 'd7e4f5c1394535b05e90dde6e3e7e8a3f3e174a2',
   android: '6c1bcc42a2cbb45c241fafea9fbd82d32ac4d765',
@@ -17,6 +20,23 @@ for (const [repository, commit] of Object.entries(COMMITS)) {
     assert.equal(scanned.status, 0, scanned.stderr);
     assert.equal(scanned.stderr, '');
     assert.equal(scanned.stdout, readFileSync(fileURLToPath(new URL(`e2e/${repository}.txt`, import.meta.url)), 'utf8'));
+  });
+}
+
+const MAPS = [
+  { repository: 'MPS', args: [], expected: 'MPS.map.txt' },
+  { repository: 'android', args: [], expected: 'android.map.txt' },
+  { repository: 'MPS', args: ['--ai'], expected: 'MPS.ai.txt' },
+];
+
+for (const { repository, args, expected } of MAPS) {
+  const name = ['map', `JetBrains/${repository}`, ...args].join(' ');
+  test(`${name} prints what tests/e2e/${expected} has${args.length ? ', from the recorded answer' : ''}`, () => {
+    const commit = COMMITS[repository as keyof typeof COMMITS];
+    const mapped = spawnSync(process.execPath, [CLI, 'map', `github.com/JetBrains/${repository}/tree/${commit}`, ...args], { encoding: 'utf8', env: REPLAYED_CLAUDE });
+    assert.equal(mapped.status, 0, mapped.stderr);
+    assert.equal(mapped.stderr, '');
+    assert.equal(mapped.stdout, readFileSync(fileURLToPath(new URL(`e2e/${expected}`, import.meta.url)), 'utf8'));
   });
 }
 

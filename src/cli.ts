@@ -4,6 +4,7 @@
 import { run } from './commands.ts';
 import { openGitHub, openOwner, parseGitHubUrl, scanOwner } from './core/github.ts';
 import { openDirectory } from './local.ts';
+import { ask } from './model.ts';
 
 const token = process.env.GITHUB_TOKEN || undefined;
 const open = (input: string) => (parseGitHubUrl(input) ? openGitHub(input, { fetch, token }) : openDirectory(input));
@@ -13,6 +14,7 @@ const owners = { open: (input: string) => openOwner(input, { fetch, token }), sc
 process.exitCode = await run(process.argv.slice(2), {
   open,
   scanOwner: owners.scan,
+  ask,
   // Loaded on demand: `scan` does not need the page.
   serve: async (port) => {
     const { createWebServer, listen } = await import('./web/server.ts');
@@ -21,3 +23,4 @@ process.exitCode = await run(process.argv.slice(2), {
   print: (text) => console.log(text),
   error: (text) => console.error(text),
 });
+

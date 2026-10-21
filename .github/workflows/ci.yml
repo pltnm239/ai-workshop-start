@@ -29,6 +29,7 @@ jobs:
         run: |
           ./skill-atlas help
           ./skill-atlas scan ./fixture
+          ./skill-atlas map ./fixture
   ui:
     runs-on: ubuntu-latest
     timeout-minutes: 15

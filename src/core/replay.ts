@@ -20,3 +20,15 @@ export function replay(recording: Recording, fallback?: Fetch): Fetch {
     throw new Error(`not recorded: ${url}`);
   };
 }
+
+/** One recorded model answer: what `claude -p` was asked, and what it answered. */
+export type RecordedAnswer = { prompt: string; answer: string };
+
+/** An `ask` that answers from recordings, so a test never calls the model; any other prompt fails. */
+export function replayModel(recordings: RecordedAnswer[]): (prompt: string) => Promise<string> {
+  return async (prompt) => {
+    const recorded = recordings.find((recording) => recording.prompt === prompt);
+    if (!recorded) throw new Error(`not recorded: ${prompt.split('\n')[0]}`);
+    return recorded.answer;
+  };
+}
