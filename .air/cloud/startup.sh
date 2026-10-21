@@ -55,14 +55,14 @@ fi
 # The web view: ./skill-atlas serve on 127.0.0.1, plus a TCP forwarder on 0.0.0.0 for the exposed port.
 if ! pgrep -f "src/cli.ts serve" >/dev/null; then
   log "starting ./skill-atlas serve on 127.0.0.1:$SERVE_PORT (log: $LOG_DIR/serve.log)"
-  nohup ./skill-atlas serve --port "$SERVE_PORT" > "$LOG_DIR/serve.log" 2>&1 < /dev/null &
+  setsid nohup ./skill-atlas serve --port "$SERVE_PORT" > "$LOG_DIR/serve.log" 2>&1 < /dev/null &
 fi
 if ! pgrep -f "skill-atlas-forward" >/dev/null; then
   log "forwarding 0.0.0.0:$PUBLIC_PORT -> 127.0.0.1:$SERVE_PORT (log: $LOG_DIR/forward.log)"
-  nohup node -e '
+  setsid nohup node -e '
     // skill-atlas-forward
     const net = require("net");
-    const [publicPort, target] = process.argv.slice(1).map(Number);
+    const [publicPort, target] = process.argv.slice(2).map(Number);
     net.createServer((client) => {
       const upstream = net.connect(target, "127.0.0.1");
       client.pipe(upstream).pipe(client);
@@ -84,7 +84,7 @@ healthcheck() {
   local n=0
   until curl -fsS --noproxy '*' -H "Host: skill-atlas.example" "http://127.0.0.1:$PUBLIC_PORT/" -o "$LOG_DIR/index.html" 2>/dev/null; do
     n=$((n + 1))
-    if [ $((n % 10)) -eq 0 ]; then log "still waiting for the web view ($n s); serve.log:"; tail -5 "$LOG_DIR/serve.log" || true; fi
+    if [ $((n % 10)) -eq 0 ]; then log "still waiting for the web view ($n s)"; tail -n 5 "$LOG_DIR/serve.log" "$LOG_DIR/forward.log" || true; fi
     sleep 1
   done
   if ! grep -q "<title>Skill Atlas</title>" "$LOG_DIR/index.html"; then
