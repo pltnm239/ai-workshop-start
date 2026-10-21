@@ -40,11 +40,12 @@ Same input and core as the CLI; *nothing is stored*. Listens on `127.0.0.1` only
 | `serve` in the browser terminal | a message: run it from the command line |
 | Malformed front matter | the skill with its directory name, the warning on the page |
 | A query that matches nothing | `No skills match` |
+| A repository without project skills | `0 skills`, *No project skills here*; no filter, no `No skills match` |
 | A query with regular expression characters, `c++` or `(x` | matched as text |
 | A match only after the first sentence | the line around it, highlighted |
 ## UI tests
-Playwright, `tests/ui/*.spec.ts`, on a fixed server (`tests/ui/server.ts`): a recorded repository and a recorded organization, no live GitHub, any other request is blocked.
-- **Covered**: the start page, a scan and the first skill, Preview and Source, `also in` copies, HTML shown as text, the malformed front matter warning, the filter and Escape, no match, an unreachable repository, an organization with `+N more`, the address on reload, even with unscanned text in the field, the help and how it closes
+Playwright, `tests/ui/*.spec.ts`, on a fixed server (`tests/ui/server.ts`): a recorded repository, one without skills and a recorded organization, no live GitHub, any other request is blocked.
+- **Covered**: the start page, a scan and the first skill, Preview and Source, `also in` copies, HTML shown as text, the malformed front matter warning, the filter and Escape, no match, a repository without skills, an unreachable repository, an organization with `+N more`, the address on reload, even with unscanned text in the field, the help and how it closes
 - **Screenshots**: every screen above is compared with `tests/ui/__screenshots__/`. **A changed pixel fails the check**: no tolerance
 - **Deterministic**: shadows and backdrop blur are off in screenshots (a blur is not drawn identically on each run), fixed viewport 1280×720, scale 1, locale, time zone, dark scheme, reduced motion, animations off, one worker
 - **Every run is recorded**: a video and a trace per test, an HTML report

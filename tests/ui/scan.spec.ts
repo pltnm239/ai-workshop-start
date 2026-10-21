@@ -1,5 +1,5 @@
-import { DEMO_URL } from './data.ts';
-import { expect, scanned, test } from './fixtures.ts';
+import { DEMO_URL, EMPTY_URL } from './data.ts';
+import { expect, scan, scanned, test } from './fixtures.ts';
 
 const option = (page: import('@playwright/test').Page, name: string) => page.locator('#skills button[role="option"]', { hasText: name });
 
@@ -56,4 +56,14 @@ test('malformed front matter: the skill keeps its directory name, the warning is
   await page.locator('#warnings summary').click();
   await expect(page.locator('#warnings li')).toContainText('release-checklist/SKILL.md: malformed front matter');
   await expect(page).toHaveScreenshot('warning.png');
+});
+
+test('a repository without skills: 0 skills and No project skills here, no filter and no No skills match', async ({ page }) => {
+  await scan(page, EMPTY_URL);
+  await expect(page.locator('.placeholder h2')).toHaveText('No project skills here');
+  await expect(page.locator('#repo-card .chip.accent')).toHaveText('0 skills');
+  await expect(page.locator('#filter-box')).toBeHidden();
+  await expect(page.locator('#no-match')).toBeHidden();
+  await expect(page.locator('#go')).toHaveText('Scan');
+  await expect(page).toHaveScreenshot('no-skills.png');
 });

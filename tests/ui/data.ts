@@ -38,7 +38,17 @@ const FILES: Record<string, string> = {
   'src/not-a-skill/SKILL.md': skill('not-a-skill', 'Outside every skill root.', '# Ignored\n'),
 };
 
+export const EMPTY_URL = 'https://github.com/JetBrains/no-skills';
+
 export async function open(input: string): Promise<Source> {
+  if (input.replace(/^https?:\/\//, '') === EMPTY_URL.replace(/^https?:\/\//, '')) {
+    return {
+      repository: { id: 'JetBrains/no-skills', organization: 'JetBrains', name: 'no-skills', url: EMPTY_URL, commit: DEMO_COMMIT },
+      paths: ['README.md'],
+      warnings: [],
+      read: async () => undefined,
+    };
+  }
   if (input.replace(/^https?:\/\//, '') !== DEMO_URL.replace(/^https?:\/\//, '')) {
     throw new AtlasError(`Repository not found: ${input}`);
   }
