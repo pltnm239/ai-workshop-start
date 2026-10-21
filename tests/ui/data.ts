@@ -46,9 +46,13 @@ const SAME_NAME_FILES: Record<string, string> = {
   '.agents/skills/beta/SKILL.md': skill('review', 'Second one.', 'Beta body\n'),
 };
 
+export const EMPTY_URL = 'https://github.com/JetBrains/no-skills';
+
 const REPOSITORIES = [
   { url: DEMO_URL, name: 'atlas-demo', files: FILES },
   { url: SAME_NAME_URL, name: 'atlas-same-name', files: SAME_NAME_FILES },
+  // Files, none of them a skill.
+  { url: EMPTY_URL, name: 'no-skills', files: { 'README.md': '# No skills\n' } },
 ];
 
 export async function open(input: string): Promise<Source> {
