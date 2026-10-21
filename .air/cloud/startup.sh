@@ -31,6 +31,25 @@ for f in "$PROFILE" "$HOME/.bashrc"; do
   grep -qF "$MARKER" "$f" 2>/dev/null || echo "[ -f \"$ENV_FILE\" ] && . \"$ENV_FILE\" $MARKER" >> "$f"
 done
 
+# Containers (npm run test:ui:docker) reach the network only through the proxy: let the Docker
+# client inject it into every container, keeping whatever else ~/.docker/config.json holds.
+if [ -n "${HTTPS_PROXY:-}" ]; then
+  mkdir -p "$HOME/.docker"
+  node -e '
+    const fs = require("fs");
+    const file = process.argv[1];
+    let config = {};
+    try { config = JSON.parse(fs.readFileSync(file, "utf8")); } catch {}
+    config.proxies = { ...config.proxies, default: {
+      httpProxy: process.env.HTTP_PROXY || process.env.HTTPS_PROXY,
+      httpsProxy: process.env.HTTPS_PROXY,
+      noProxy: "localhost,127.0.0.1",
+    } };
+    fs.writeFileSync(file, JSON.stringify(config, null, 2) + "\n");
+  ' "$HOME/.docker/config.json"
+  log "docker containers use the proxy ($HOME/.docker/config.json)"
+fi
+
 log "node $(node -v), npm $(npm -v)"
 log "npm ci ..."
 npm ci --prefer-offline --no-audit --no-fund
@@ -78,8 +97,10 @@ healthcheck() {
   log "healthcheck: CLI smoke on ./fixture"
   ./skill-atlas help > /dev/null
   ./skill-atlas scan ./fixture
-  log "healthcheck: Playwright image runs"
-  docker run --rm --platform linux/amd64 "$PLAYWRIGHT_IMAGE" node -v
+  log "healthcheck: UI tests in the CI container (npm run test:ui:docker)"
+  npm run test:ui:docker
+  # The container writes its reports as root; don't leave them in the snapshot for local runs to trip on.
+  docker run --rm -v "$PWD":/work -w /work "$PLAYWRIGHT_IMAGE" rm -rf test-results playwright-report
   log "healthcheck: waiting for the web view on :$PUBLIC_PORT"
   local n=0
   until curl -fsS --noproxy '*' -H "Host: skill-atlas.example" "http://127.0.0.1:$PUBLIC_PORT/" -o "$LOG_DIR/index.html" 2>/dev/null; do
